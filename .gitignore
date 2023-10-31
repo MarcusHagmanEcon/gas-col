@@ -1,0 +1,7 @@
+
+*.csv
+*.rds
+
+*.1
+*.gz
+.Rproj.user
