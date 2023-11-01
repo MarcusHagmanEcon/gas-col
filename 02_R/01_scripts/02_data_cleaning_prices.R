@@ -77,7 +77,8 @@ gas_prices_day <- gas_prices %>%
   summarise(
     e5 = sum(weighted_e5) / sum(duration),
     e10 = sum(weighted_e10) / sum(duration),
-    diesel = sum(weighted_diesel) / sum(duration)
+    diesel = sum(weighted_diesel) / sum(duration),
+    price_changes = n()
   )
 
 # Remove obs where all prices are NA
