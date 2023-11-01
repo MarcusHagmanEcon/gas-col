@@ -6,7 +6,6 @@
 # 
 # Purpose: This script takes in the long document of all price changes and 
 #           calculates the number of price changes per day and average daily price.
-#           Outliers are removed.
 #
 # Input: - 01_data/01_raw/gas_prices.csv
 # 
@@ -83,5 +82,21 @@ gas_prices_day <- gas_prices %>%
 
 # Remove obs where all prices are NA
 gas_prices_day <- gas_prices_day %>% filter(!is.na(e5) | !is.na(e10) | !is.na(diesel))
+
+# Log prices
+gas_prices_day <- gas_prices_day %>% mutate(log_e5 = log(e5),
+                                          log_e10 = log(e10),
+                                          log_diesel = log(diesel))
+
+# Remove outliers
+bounds <- gas_prices_day %>% group_by(date) %>% summarize(median = median(log_e5, na.rm = TRUE),
+                                                         iqr = IQR(log_e5, na.rm = TRUE),
+                                                         upper_bound_e5 = median + 5 * iqr,
+                                                         lower_bound_e5 = median - 5 * iqr ) %>%
+  select(date, upper_bound_e5, lower_bound_e5)
+
+gas_prices_day <- gas_prices_day %>% left_join(bounds, by = c("date"))
+
+gas_prices_day <- gas_prices_day %>% filter(log_e5 > lower_bound_e5 & log_e5 < upper_bound_e5)
 
 saveRDS(gas_prices_day, file = "01_data/02_processed/cleaned_gas_prices.rds")
