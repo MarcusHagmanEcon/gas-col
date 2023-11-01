@@ -1,7 +1,55 @@
+# History files
+.Rhistory
+.Rapp.history
+
+# Session Data files
+.RData
+
+# User-specific project settings
+.Rproj.user/
+
+# User-specific files
+.Rprofile
+.Renviron
+
+# RStudio files
+.Rproj
+
+# Output files
+.Rout
+.Rout.save
+.Rout.fail
+
+# Packrat and renv directories
+/packrat/
+/renv/
+
+# Package build and check artifacts
+*.tar.gz
+.Rcheck/
+/src-i386/
+/src-x64/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor-specific files
+.vscode/
+
+# Plot outputs
+*.pdf
+*.png
+*.jpg
+
+# Compiled code
+*.o
+*.so
+*.dll
+
 
 *.csv
 *.rds
 
 *.1
 *.gz
-.Rproj.user
