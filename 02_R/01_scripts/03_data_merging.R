@@ -26,7 +26,7 @@ library(lubridate)
 # Load data
 gas_prices <- readRDS("01_data/02_processed/cleaned_gas_prices.rds")
 gas_stations <- readRDS("01_data/02_processed/cleaned_gas_stations.rds")
-oil <- readRDS("01_data/02_processed/cleaned_population.rds")
+oil <- readRDS("01_data/02_processed/cleaned_oil.rds")
 
 analysis_data <- left_join(gas_prices, gas_stations, by = c("stid" = "id")) %>%
   left_join(oil, by = c("date"))
