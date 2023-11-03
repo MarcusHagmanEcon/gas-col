@@ -25,7 +25,7 @@ library(lfe)
 library(zoo)
 library(stargazer)
 library(nlme)
-library(plyr)
+#library(plyr)
 
 # Load data
 analysis_data <- readRDS("01_data/02_processed/analysis_data.rds")
@@ -737,3 +737,182 @@ felm(log_e5 ~ same_brand_as_nearest_station_drdur +
 d = 0.1
 (analysis_data %>% filter(phdis_to_nearest_station < d & same_brand_as_nearest_station_phdis) %>% nrow())/
   nrow(analysis_data %>% filter(phdis_to_nearest_station < d ))
+
+
+
+
+
+
+
+analysis_data <- analysis_data %>% mutate(diff_log_e5 = ifelse(stid == lag(stid), log_e5 - lag(log_e5), NA))
+
+
+# Skip the first 4 rows
+oil <- oil[-(1:4), ]
+
+# Separate the column into two using the comma as a separator
+# This step assumes that you have a column named 'V1' that contains the data to split.
+oil <- separate(oil, col = names(oil), into = c("date", "oil_price"), sep = ",")
+
+# Convert 'date' to an actual Date type if necessary
+oil$date <- as.Date(oil$date, format = "%m/%d/%Y")
+
+# Convert 'oil_price' to numeric if necessary
+oil$oil_price <- as.numeric(oil$oil_price)
+
+oil$log_oil_price <- log(oil$oil_price)
+
+oil <- oil %>% mutate(diff_log_oil_price = log_oil_price - lag(log_oil_price))
+
+analysis_data <- analysis_data %>% left_join(oil, by = c("date"))
+
+analysis_data <- analysis_data %>% mutate(mkt_pwr = strategic_ps & same_brand_as_nearest_station_phdis)
+
+daily_avg <- analysis_data %>% group_by(date, mkt_pwr) %>% summarise(e5 = mean(e5))
+
+wide_df <- daily_avg %>%
+  pivot_wider(
+    names_from = mkt_pwr, 
+    values_from = e5,
+    names_prefix = "e5_",
+    values_fill = list(e5 = NA) # This is optional, to fill missing values with NA
+  )
+
+wide_df$diff_e5_TRUE = wide_df$e5_TRUE - lag(wide_df$e5_TRUE)
+wide_df$diff_e5_FALSE = wide_df$e5_FALSE - lag(wide_df$e5_FALSE)
+
+wide_df <- wide_df %>%
+  left_join(oil, by = c("date"))
+
+wide_df <- wide_df[1:691,]
+
+wide_df$oil_price2 <- na.approx(wide_df$oil_price)
+wide_df$diff_oil_price2 <- wide_df$oil_price2 - lag(wide_df$oil_price2)
+
+lm(diff_e5_TRUE ~ 0 + lag(diff_oil_price2, n =0) + lag(diff_oil_price2, n =1) + 
+     lag(diff_oil_price2, n =2)  + lag(diff_oil_price2, n =3)  +
+     lag(diff_oil_price2, n =4) , data = wide_df) %>% summary()
+lm(diff_e5_TRUE ~ 0 +  
+     lag(diff_oil_price2, n =2)  + 
+     I(lag(diff_oil_price2, n =2)*as.numeric(lag(diff_oil_price2, n =2)>0))
+     , data = wide_df) %>% summary()
+lm(diff_e5_FALSE ~ 0 +  
+     lag(diff_oil_price2, n =2)  + 
+     I(lag(diff_oil_price2, n =2)*as.numeric(lag(diff_oil_price2, n =2)>0))
+   , data = wide_df) %>% summary()
+lm(diff_e5_FALSE ~ 0 + lag(diff_oil_price), data = wide_df) %>% summary()
+
+wide_df$oil_price_adj <- wide_df$oil_price * 14
+wide_df$oil_price2_adj <- wide_df$oil_price2 * 14
+ggplot(wide_df, aes(x = date)) + 
+  geom_line(aes(y = e5_TRUE, colour = "e5_TRUE")) + 
+  geom_line(aes(y = e5_FALSE, colour = "e5_FALSE")) + 
+  geom_line(aes(y = oil_price2_adj, colour = "14x oil_price")) + 
+  labs(colour = "Legend") + # Rename the legend title
+  scale_colour_manual(values = c("e5_TRUE" = "blue", "e5_FALSE" = "red", "14x oil_price" = "green")) + 
+  theme_minimal() +
+  labs(x = "Date", y = "Value", title = "Time Series Plot") # Add labels and title
+#%>% filter(date < "2014-09-01" & date > "2014-04-01")
+
+lm(diff_log_oil_price ~ 0 + lag(diff_log_oil_price), data = analysis_data) %>% summary()
+
+
+lm(diff_e5 ~ 0 + lag(diff_oil_price.x), data = analysis_data) %>% summary()
+
+lm(log(diff_e5) ~ 0 + log(diff_oil_price) + I(diff_oil_price * as.numeric(diff_oil_price > 0)), data = analysis_data) %>% summary()
+
+
+lm(diff_e5 ~  diff_oil_price + I(diff_oil_price * as.numeric(diff_oil_price > 0)), data = analysis_data) %>% summary()
+
+lm(diff_e5 ~  diff_oil_price + I(diff_oil_price * as.numeric(diff_oil_price > 0)), data = analysis_data) %>% summary()
+
+
+lm(diff_e5 ~ as.numeric((brand == brand_of_nearest_station_phdis)*strategic_ps )+
+     lag(lag(diff_oil_price)) + lag(diff_oil_price) + diff_oil_price + 
+     I(diff_oil_price * as.numeric(diff_oil_price > 0)) + 
+     I(diff_oil_price * as.numeric((brand == brand_of_nearest_station_phdis)*strategic_ps)) +
+     I(diff_oil_price * as.numeric(diff_oil_price > 0) * as.numeric((brand == brand_of_nearest_station_phdis)*strategic_ps )),
+   data = analysis_data) %>% summary()
+
+lm(diff_e5 ~ 
+     lag(lag(diff_oil_price)) + lag(diff_oil_price) + diff_oil_price + 
+     I(diff_oil_price * as.numeric(diff_oil_price > 0)),
+   data = analysis_data %>% filter(strategic_ps & (brand == brand_of_nearest_station_phdis))) %>% summary()
+
+lm(diff_e5 ~ -1 +
+     lag(lag(diff_oil_price)) + lag(diff_oil_price) + diff_oil_price + 
+     I(diff_oil_price * as.numeric(diff_oil_price > 0)),
+   data = analysis_data %>% filter(strategic_ps )) %>% summary()
+
+lm(diff_e5 ~ -1 +
+     lag(lag(diff_oil_price)) + lag(diff_oil_price) + diff_oil_price + 
+     I(diff_oil_price * as.numeric(diff_oil_price > 0)),
+   data = analysis_data %>% filter(!strategic_ps )) %>% summary()
+
+lm(diff_e5 ~ -1 + diff_oil_price + 
+     I(diff_oil_price * as.numeric(diff_oil_price > 0)),
+   data = analysis_data %>% filter(strategic_ps )) %>% summary()
+
+lm(diff_e5 ~ -1  + diff_oil_price + 
+     I(diff_oil_price * as.numeric(diff_oil_price > 0)),
+   data = analysis_data %>% filter(!strategic_ps )) %>% summary()
+
+lm(diff_e5 ~ as.numeric((brand == brand_of_nearest_station_phdis)*strategic_ps )+
+     lag(lag(diff_oil_price)) + lag(diff_oil_price) + diff_oil_price + 
+     I(diff_oil_price * as.numeric(diff_oil_price > 0)),
+   data = analysis_data) %>% summary()
+
+
+oil <- read_csv("01_data/01_raw/oil.csv")
+# Skip the first 4 rows
+oil <- oil[-(1:4), ]
+
+# Separate the column into two using the comma as a separator
+# This step assumes that you have a column named 'V1' that contains the data to split.
+oil <- separate(oil, col = names(oil), into = c("date", "oil_price"), sep = ",")
+
+# Convert 'date' to an actual Date type if necessary
+oil$date <- as.Date(oil$date, format = "%m/%d/%Y")
+
+# Convert 'oil_price' to numeric if necessary
+oil$oil_price <- as.numeric(oil$oil_price)
+
+oil$log_oil_price <- log(oil$oil_price)
+
+oil <- data.frame("date" = unique_dates)  %>% left_join(oil, by = c("date"))
+
+oil <- oil[1:691,]
+
+oil$oil_price <- na.approx(oil$oil_price)
+oil$log_oil_price <- na.approx(oil$log_oil_price)
+
+oil <- oil %>% mutate(diff_oil_price = oil_price - lag(oil_price),
+                      diff_log_oil_price = log_oil_price - lag(log_oil_price))
+
+
+analysis_data <- analysis_data %>% left_join(oil, by = c("date") )
+
+analysis_data$diff_e5 = ifelse(analysis_data$stid == lag(analysis_data$stid), analysis_data$e5 - lag(analysis_data$e5), NA)
+analysis_data$diff_log_e5 = ifelse(analysis_data$stid == lag(analysis_data$stid), analysis_data$log_e5 - lag(analysis_data$log_e5), NA)
+analysis_data$mkt_pwr <- analysis_data$same_brand_as_nearest_station_phdis * analysis_data$strategic_ps
+
+# Analysis
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+    I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)  )+ 
+     I(lag(diff_log_oil_price, n=2)*mkt_pwr) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0) *mkt_pwr ) ,
+      data = analysis_data) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)  ),
+   data = analysis_data %>% filter(!mkt_pwr)) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)  ),
+   data = analysis_data %>% filter(mkt_pwr==1)) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2),
+   data = analysis_data %>% filter(!mkt_pwr)) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2),
+   data = analysis_data %>% filter(mkt_pwr==1)) %>% summary()
