@@ -25,6 +25,7 @@ library(lfe)
 library(zoo)
 library(stargazer)
 library(nlme)
+library(lmtest)
 #library(plyr)
 
 # Load data
@@ -129,7 +130,6 @@ ggsave("03_outputs/figures/20231030_fig_samebrand_overtime.png", p, width = 9, h
 brand_list <- gas_stations %>% filter(!is.na(brand)) %>% group_by(brand) %>% 
   summarise(n = n()) %>% arrange(-n) %>% filter(n > 25) %>% mutate(t_stat = NA,
                                                                    p_val = NA)
-
 for (b in brand_list$brand){
   print(which(brand_list$brand == b))
   print(b)
@@ -911,8 +911,405 @@ lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
      I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)  ),
    data = analysis_data %>% filter(mkt_pwr==1)) %>% summary()
 
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)  ),
+   data = analysis_data %>% filter(strategic_ps==1)) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)  ),
+   data = analysis_data %>% filter(same_brand_as_nearest_station_phdis==1 & strategic_ps!=1)) %>% summary()
+
+lm(diff_log_e5 ~ 0 + lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2 > 0)) * diff_phdis_2nd_1st  ),
+   data = analysis_data %>% filter(mkt_pwr==1) ) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0))+
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0) * diff_phdis_2nd_1st ),
+   data = analysis_data %>% filter(mkt_pwr==1)) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)),
+   data = analysis_data %>% filter(mkt_pwr==1)) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)),
+   data = analysis_data %>% filter((brand_of_3rd_nearest_station_phdis == brand_of_2nd_nearest_station_phdis))) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)),
+   data = analysis_data %>% filter((brand_of_3rd_nearest_station_phdis == brand_of_2nd_nearest_station_phdis) & 
+                                     !(brand_of_2nd_nearest_station_phdis %in% strategic_ps_list))) %>% summary()
+
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2),
+   data = analysis_data) %>% summary()
+
 lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2),
    data = analysis_data %>% filter(!mkt_pwr)) %>% summary()
 
 lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2),
    data = analysis_data %>% filter(mkt_pwr==1)) %>% summary()
+
+lm(diff_log_e5 ~ 0+ lag(diff_log_oil_price, n=2),
+   data = analysis_data %>% filter(strategic_ps==1)) %>% summary()
+
+
+
+felm(log_e5 ~ same_brand_as_nearest_station_phdis +
+       stations_within_5km + stations_within_10km + stations_within_15km +
+       population_within_10km + stations_per_million_pop_10km|  brand + date  | 0 | brand + date,
+     data = analysis_data %>% filter(strategic_ps),
+     na.action = na.omit) %>% summary()
+
+felm(log_e5 ~ same_brand_as_nearest_station_phdis +
+       stations_within_5km + stations_within_10km + stations_within_15km +
+       population_within_10km + stations_per_million_pop_10km|  brand + date  | 0 | brand + date,
+     data = analysis_data %>% filter(!strategic_ps),
+     na.action = na.omit) %>% summary()
+
+
+lm(diff_e5 ~ 0+ lag(diff_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)),
+   data = analysis_data ) %>% summary()
+
+lm(diff_e5 ~ 0+ lag(diff_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)),
+   data = analysis_data %>% filter(same_brand_as_nearest_station_phdis & strategic_ps) ) %>% summary()
+
+lm(diff_e5 ~ 0+ lag(diff_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)) +
+     lag(diff_oil_price, n=2)*as.numeric(same_brand_as_nearest_station_phdis) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)*same_brand_as_nearest_station_phdis),
+   data = analysis_data %>% filter(!strategic_ps) ) %>% summary()
+
+lm(diff_e5 ~ 0+ lag(diff_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)) +
+     lag(diff_oil_price, n=2)*as.numeric(same_brand_as_nearest_station_phdis) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)*same_brand_as_nearest_station_phdis)+
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)*same_brand_as_nearest_station_phdis * diff_phdis_2nd_1st),
+   data = analysis_data %>% filter(strategic_ps) ) %>% summary()
+
+
+lm(diff_e5 ~ 1 + lag(diff_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)) +
+     lag(diff_oil_price, n=2) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis),
+   data = analysis_data ) %>% summary()
+  
+lm(diff_log_e5 ~ 1 + lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)) +
+     I(lag(diff_log_oil_price, n=2) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis)) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis)),
+   data = analysis_data ) %>% summary()
+
+lm(diff_log_e5 ~ 0 + lag(diff_log_oil_price, n=2) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0)) +
+     I(lag(diff_log_oil_price, n=2) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis)) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis)) +
+     I(lag(diff_log_oil_price, n=2) * diff_phdis_2nd_1st) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0) * diff_phdis_2nd_1st) +
+     I(lag(diff_log_oil_price, n=2) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis) * diff_phdis_2nd_1st) +
+     I(lag(diff_log_oil_price, n=2)*(lag(diff_log_oil_price, n=2) > 0) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis) * diff_phdis_2nd_1st),
+     data = analysis_data ) %>% summary()
+
+lm(diff_log_e5 ~ 0 + lag(diff_log_oil_price, n=3) +
+     I(lag(diff_log_oil_price, n=3)*(lag(diff_log_oil_price, n=3) > 0)) +
+     I(lag(diff_log_oil_price, n=3) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis)) +
+     I(lag(diff_log_oil_price, n=3)*(lag(diff_log_oil_price, n=3) > 0) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis)) +
+     I(lag(diff_log_oil_price, n=3) * diff_phdis_2nd_1st) +
+     I(lag(diff_log_oil_price, n=3)*(lag(diff_log_oil_price, n=3) > 0) * diff_phdis_2nd_1st) +
+     I(lag(diff_log_oil_price, n=3) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis) * diff_phdis_2nd_1st) +
+     I(lag(diff_log_oil_price, n=3)*(lag(diff_log_oil_price, n=3) > 0) * as.numeric(strategic_ps & same_brand_as_nearest_station_phdis) * diff_phdis_2nd_1st),
+   data = analysis_data ) %>% summary()
+
+felm(log_e5 ~ diff_phdis_2nd_1st + as.numeric(strategic_ps & same_brand_as_nearest_station_phdis) +
+     I(as.numeric(strategic_ps & same_brand_as_nearest_station_phdis)*diff_phdis_2nd_1st) +
+     stations_within_5km + stations_within_10km + stations_within_15km +
+     population_within_10km + stations_per_million_pop_10km|  brand + date  | 0 | brand + date,
+     data = analysis_data,
+     na.action = na.omit) %>% summary()
+
+
+
+model <- lm(diff_log_e5 ~ 0 + lag(diff_log_oil_price, n=0) +
+     lag(diff_log_oil_price, n=1) +
+     lag(diff_log_oil_price, n=2) +
+     lag(diff_log_oil_price, n=3) +
+     lag(diff_log_oil_price, n=4) +
+     lag(diff_log_oil_price, n=5) +
+       lag(diff_log_oil_price, n=6) +
+       lag(diff_log_oil_price, n=7) +
+       lag(diff_log_oil_price, n=8) +
+       lag(diff_log_oil_price, n=9) +
+       lag(diff_log_oil_price, n=10) +
+       lag(diff_log_oil_price, n=11) +
+     I( lag(diff_log_oil_price, n=0) * as.numeric(diff_log_oil_price > 0)) +
+     I( lag(diff_log_oil_price, n=1) * as.numeric(diff_log_oil_price > 0)) +
+     I( lag(diff_log_oil_price, n=2) * as.numeric(diff_log_oil_price > 0)) +
+     I( lag(diff_log_oil_price, n=3) * as.numeric(diff_log_oil_price > 0)) +
+     I( lag(diff_log_oil_price, n=4) * as.numeric(diff_log_oil_price > 0)) +
+     I( lag(diff_log_oil_price, n=5) * as.numeric(diff_log_oil_price > 0)) + 
+       I( lag(diff_log_oil_price, n=6) * as.numeric(diff_log_oil_price > 0)) +
+       I( lag(diff_log_oil_price, n=7) * as.numeric(diff_log_oil_price > 0)) +
+       I( lag(diff_log_oil_price, n=8) * as.numeric(diff_log_oil_price > 0)) +
+       I( lag(diff_log_oil_price, n=9) * as.numeric(diff_log_oil_price > 0)) +
+       I( lag(diff_log_oil_price, n=10) * as.numeric(diff_log_oil_price > 0)) +
+       I( lag(diff_log_oil_price, n=11) * as.numeric(diff_log_oil_price > 0)),
+   data = analysis_data ) %>% summary()
+
+model$coefficients[2:8,1] %>% sum()
+model$coefficients[9:15,1] %>% sum()
+model$coefficients[16:22,1] %>% sum()
+model$coefficients[23:29,1] %>% sum()
+model$coefficients[2:8,1] %>% rbind( model$coefficients[16:22,1]) %>% sum()
+model$coefficients[9:15,1] %>% rbind( model$coefficients[23:29,1]) %>% sum()
+
+model <- felm(diff_log_e5 ~ lag(diff_log_oil_price, n=0) +
+     lag(diff_log_oil_price, n=1) +
+     lag(diff_log_oil_price, n=2) +
+     lag(diff_log_oil_price, n=3) +
+     lag(diff_log_oil_price, n=4) +
+     lag(diff_log_oil_price, n=5) +
+     lag(diff_log_oil_price, n=6) +
+     lag(diff_log_oil_price, n=7) +
+     lag(diff_log_oil_price, n=8) +
+     lag(diff_log_oil_price, n=9) +
+     lag(diff_log_oil_price, n=10) +
+     lag(diff_log_oil_price, n=11) +
+     I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+     I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+     I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)) +
+     I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) > 0)) +
+     I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) > 0)) +
+     I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) > 0)) + 
+     I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) > 0)) +
+     I( lag(diff_log_oil_price, n=7) * as.numeric(lag(diff_log_oil_price, n=7) > 0)) +
+     I( lag(diff_log_oil_price, n=8) * as.numeric(lag(diff_log_oil_price, n=8) > 0)) +
+     I( lag(diff_log_oil_price, n=9) * as.numeric(lag(diff_log_oil_price, n=9) > 0)) +
+     I( lag(diff_log_oil_price, n=10) * as.numeric(lag(diff_log_oil_price, n=10) > 0)) +
+     I( lag(diff_log_oil_price, n=11) * as.numeric(lag(diff_log_oil_price, n=11) > 0))|0|0| stid + date,
+   data = analysis_data ) %>% summary()
+
+model1 <- lm(diff_log_e5 ~ lag(diff_log_oil_price, n=0) +
+                lag(diff_log_oil_price, n=1) +
+                lag(diff_log_oil_price, n=2) +
+                lag(diff_log_oil_price, n=3) +
+                lag(diff_log_oil_price, n=4) +
+                lag(diff_log_oil_price, n=5) +
+                lag(diff_log_oil_price, n=6) +
+                I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+                I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+                I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)) +
+                I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) > 0)) +
+                I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) > 0)) +
+                I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) > 0)) + 
+                I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) > 0)),
+              data = analysis_data )
+
+model2 <- felm(diff_log_e5 ~ lag(diff_log_oil_price, n=0) +
+                lag(diff_log_oil_price, n=1) +
+                lag(diff_log_oil_price, n=2) +
+                lag(diff_log_oil_price, n=3) +
+                lag(diff_log_oil_price, n=4) +
+                lag(diff_log_oil_price, n=5) +
+                lag(diff_log_oil_price, n=6) +
+                I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+                I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+                I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)) +
+                I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) > 0)) +
+                I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) > 0)) +
+                I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) > 0)) + 
+                I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) > 0)) +
+              I(lag(diff_log_oil_price, n=0)*mkt_pwr) +
+              I(lag(diff_log_oil_price, n=1)*mkt_pwr) +
+              I(lag(diff_log_oil_price, n=2)*mkt_pwr) +
+              I(lag(diff_log_oil_price, n=3)*mkt_pwr) +
+              I(lag(diff_log_oil_price, n=4)*mkt_pwr) +
+              I(lag(diff_log_oil_price, n=5)*mkt_pwr) +
+              I(lag(diff_log_oil_price, n=6)*mkt_pwr) +
+              I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)*mkt_pwr) +
+              I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)*mkt_pwr) +
+              I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)*mkt_pwr) +
+              I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) > 0)*mkt_pwr) +
+              I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) > 0)*mkt_pwr) +
+              I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) > 0)*mkt_pwr) + 
+              I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) > 0)*mkt_pwr)|0|0|date+stid,
+              data = analysis_data )
+
+anova_result <- anova(model1, model2)
+print(anova_result)
+
+analysis_data$mkt_pwr <- as.numeric(analysis_data$same_brand_as_nearest_station_phdis & analysis_data$strategic_ps)
+
+model_no_mkt_pwr <- felm(diff_log_e5 ~ 0 +
+                         I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) <= 0)) +
+                         I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) <= 0)) +
+                         I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) <= 0)) +
+                         I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) <= 0)) +
+                         I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) <= 0)) +
+                         I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) <= 0)) + 
+                         I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) <= 0)) +
+                         I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+                         I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+                         I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)) +
+                         I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) > 0)) +
+                         I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) > 0)) +
+                         I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) > 0)) + 
+                         I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) > 0))|0|0|date+stid,
+                          data = analysis_data %>% filter(mkt_pwr==0) )
+
+model_mkt_pwr <- felm(diff_log_e5 ~ 0 +
+                           I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) <= 0)) +
+                           I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) <= 0)) +
+                           I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) <= 0)) +
+                           I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) <= 0)) +
+                           I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) <= 0)) +
+                           I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) <= 0)) + 
+                           I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) <= 0)) +
+                           I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+                           I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+                           I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)) +
+                           I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) > 0)) +
+                           I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) > 0)) +
+                           I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) > 0)) + 
+                           I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) > 0))|0|0|date+stid,
+                         data = analysis_data %>% filter(mkt_pwr==1) )
+
+plot_data <- data.frame(x = 0:6, coef = model_mkt_pwr$coefficients[1:7],
+                        se = model_mkt_pwr$cse[1:7], group = 1)
+plot_data <- plot_data %>% rbind(
+  data.frame(x = 0:6, coef = model_mkt_pwr$coefficients[8:14],
+             se = model_mkt_pwr$cse[8:14], group = 2)
+)
+plot_data <- plot_data %>% rbind(
+  data.frame(x = 0:6, coef = model_no_mkt_pwr$coefficients[1:7],
+             se = model_no_mkt_pwr$cse[1:7], group = 3)
+)
+plot_data <- plot_data %>% rbind(
+  data.frame(x = 0:6, coef = model_no_mkt_pwr$coefficients[8:14],
+             se = model_no_mkt_pwr$cse[8:14], group = 4)
+)
+plot_data$group <- factor(plot_data$group)
+
+# Generate the overlaid plot
+p <- ggplot(plot_data, aes(x = x, y = coef, group = group, color = group)) +
+  geom_line(aes(linetype = group), position = position_dodge(0.2)) +
+  geom_errorbar(aes(ymin = coef - 2*se, ymax = coef + 2*se), 
+                width = .2,                    # Adjust the width of the error bars
+                position = position_dodge(0.2)) +
+  labs(x = 'Coefficient', y = 'Value') +
+  theme_minimal() +
+  scale_color_manual(values = c("red", "darkred", "lightblue", "blue")) # Customize colors if needed
+
+# Display the plot
+print(p)
+
+
+analysis_data$weekday <- weekdays(analysis_data$date)
+
+model <- felm(diff_log_e5 ~ 0 +
+                           I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) <= 0)) +
+                           I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) <= 0)) +
+                           I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) <= 0)) +
+                           I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) <= 0)) +
+                           I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) <= 0)) +
+                           I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) <= 0)) + 
+                           I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) <= 0)) +
+                           I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+                           I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+                           I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)) +
+                           I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) > 0)) +
+                           I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) > 0)) +
+                           I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) > 0)) + 
+                           I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) > 0)) +
+                            as.factor(weekday)|0|0|date+stid,
+                         data = analysis_data )
+
+plot_data <- data.frame(x = 0:6, coef = model$coefficients[1:7],
+                        se = model$cse[1:7], group = 1)
+plot_data <- plot_data %>% rbind(
+  data.frame(x = 0:6, coef = model$coefficients[8:14],
+             se = model$cse[8:14], group = 2)
+)
+plot_data$group <- factor(plot_data$group)
+
+# Generate the overlaid plot
+p <- ggplot(plot_data, aes(x = x, y = coef, group = group, color = group)) +
+  geom_line(aes(linetype = group), position = position_dodge(0.2)) +
+  geom_errorbar(aes(ymin = coef - 2*se, ymax = coef + 2*se), 
+                width = .2,                    # Adjust the width of the error bars
+                position = position_dodge(0.2)) +
+  labs(x = 'Coefficient', y = 'Value') +
+  theme_minimal() +
+  scale_color_manual(values = c("red", "blue")) # Customize colors if needed
+
+# Display the plot
+print(p)
+
+df <- data.frame(coef_neg <- model$coefficients[1:7],
+                 coef_pos <- model$coefficients[8:14])
+
+lm(coef_neg ~ coef_pos, data = df) %>% summary()
+
+ggplot(df, aes(x = coef_neg, y = coef_pos)) +
+  geom_point() +
+  labs(x = "Coef Neg", y = "Coef Pos", title = "Scatterplot of Coef Neg vs Coef Pos") +
+  theme_minimal()
+
+
+
+
+
+analysis_data$weekday <- weekdays(analysis_data$date)
+unique_stid <- gas_stations$id
+gas_stations$apt_t <- NA
+gas_stations$apt_coef <- NA
+gas_stations$apt_corr <- NA
+
+for (i in 1:length(unique_stid)){
+  stid_var <- unique_stid[i]
+  print(i)
+  reg_data <- analysis_data %>% filter(stid == stid_var)
+  
+  try({
+    model <- lm(diff_log_e5 ~ 0 +
+                  I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) <= 0)) +
+                  I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) <= 0)) +
+                  I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) <= 0)) +
+                  I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) <= 0)) +
+                  I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) <= 0)) +
+                  I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) <= 0)) + 
+                  I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) <= 0)) +
+                  I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+                  I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+                  I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)) +
+                  I( lag(diff_log_oil_price, n=3) * as.numeric(lag(diff_log_oil_price, n=3) > 0)) +
+                  I( lag(diff_log_oil_price, n=4) * as.numeric(lag(diff_log_oil_price, n=4) > 0)) +
+                  I( lag(diff_log_oil_price, n=5) * as.numeric(lag(diff_log_oil_price, n=5) > 0)) + 
+                  I( lag(diff_log_oil_price, n=6) * as.numeric(lag(diff_log_oil_price, n=6) > 0)) +
+                  as.factor(weekday),
+                data = reg_data )
+    df <- data.frame(coef_neg = model$coefficients[1:7],
+                     coef_pos = model$coefficients[8:14])
+    
+    output <- lm(coef_neg ~ coef_pos, data = df) %>% summary() %>% coef()
+    
+    gas_stations$apt_t[i] <- output["coef_pos","t value"]
+    gas_stations$apt_coef[i] <- output["coef_pos","Estimate"]
+    gas_stations$apt_corr[i] <- cor(df$coef_pos, df$coef_neg)
+  })
+}
+
+saveRDS(gas_stations, file = "01_data/02_processed/cleaned_gas_stations_temp.rds")
+
+for_merge <- gas_stations %>% select(id, apt_t, apt_coef, apt_corr)
+
+analysis_data_2 <- analysis_data %>% left_join(for_merge, by = c("stid" = "id"))
+
+model <- felm(log_e5 ~ I(apt_corr<0) +  same_brand_as_nearest_station_phdis +
+       stations_within_5km + stations_within_10km + stations_within_15km +
+       population_within_10km + stations_per_million_pop_10km|   date  | 0 | date,
+     data = analysis_data_2,
+     na.action = na.omit)
+summary(model)
