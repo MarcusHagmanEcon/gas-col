@@ -1,4 +1,23 @@
+#--------------------------------------------------------------------------
+# Script Name: 
+# 
+# Author: Marcus Hagman
+# Date: 2023-10-18
+# 
+# Purpose: 
+#
+# Input: 
+# 
+# Output: 
+#
+# Instructions: 
+#
+# Revision History:
+#--------------------------------------------------------------------------
 
+rm(list=ls())
+
+setwd("C:/Users/marcu/Documents/gas-col")
 
 oil <- read_csv("01_data/01_raw/oil.csv")
 # Skip the first 4 rows
@@ -14,30 +33,56 @@ oil$date <- as.Date(oil$date, format = "%m/%d/%Y")
 # Convert 'oil_price' to numeric if necessary
 oil$oil_price <- as.numeric(oil$oil_price)
 
-oil$log_oil_price <- log(oil$oil_price)
 
-# Define the start and end dates
-start_date <- as.Date("2014-01-01")
-end_date <- as.Date("2016-12-31")
+getMondayOfWeek <- function(date) {
+  # Convert input to a Date object if it's not already
+  date <- as.Date(date)
+  
+  # Find the weekday as a number (1 = Monday, 7 = Sunday)
+  weekday <- as.integer(format(date, "%u"))
+  
+  # Calculate the date of the Monday of the week
+  mondayDate <- date - (weekday - 1)
+  
+  return(mondayDate)
+}
 
-# Generate the sequence of dates
-date_sequence <- seq(from = start_date, to = end_date, by = "day")
+oil$week <- getMondayOfWeek(oil$date)
 
-oil <- data.frame("date" = date_sequence)  %>% left_join(oil, by = c("date"))
+oil_week <- oil %>% group_by(week) %>% summarise(oil_price = mean(oil_price, na.rm = TRUE))
 
-# Find the index of the first non-NA value
-first_non_na <- which(!is.na(oil$oil_price))[1]
+oil_week$log_oil_price <- log(oil_week$oil_price)
 
-# Find the index of the last non-NA value
-last_non_na <- which(!is.na(oil$oil_price))[length(which(!is.na(oil$oil_price)))]
-
-# Subset the dataframe to keep only the rows between the first and last non-NA values
-oil <- oil[first_non_na:last_non_na, ]
-
-oil$oil_price <- na.approx(oil$oil_price)
-oil$log_oil_price <- na.approx(oil$log_oil_price)
-
-oil <- oil %>% mutate(diff_oil_price = oil_price - lag(oil_price),
+oil_week <- oil_week %>% mutate(diff_oil_price = oil_price - lag(oil_price),
                       diff_log_oil_price = log_oil_price - lag(log_oil_price))
 
 saveRDS(oil, file = "01_data/02_processed/cleaned_oil.rds")
+
+
+# 
+# 
+# # Define the start and end dates
+# start_date <- as.Date("2014-01-01")
+# end_date <- as.Date("2016-12-31")
+# 
+# # Generate the sequence of dates
+# date_sequence <- seq(from = start_date, to = end_date, by = "day")
+# 
+# oil <- data.frame("date" = date_sequence)  %>% left_join(oil, by = c("date"))
+# 
+# # Find the index of the first non-NA value
+# first_non_na <- which(!is.na(oil$oil_price))[1]
+# 
+# # Find the index of the last non-NA value
+# last_non_na <- which(!is.na(oil$oil_price))[length(which(!is.na(oil$oil_price)))]
+# 
+# # Subset the dataframe to keep only the rows between the first and last non-NA values
+# oil <- oil[first_non_na:last_non_na, ]
+# 
+# oil$oil_price <- na.approx(oil$oil_price)
+# oil$log_oil_price <- na.approx(oil$log_oil_price)
+# 
+# oil <- oil %>% mutate(diff_oil_price = oil_price - lag(oil_price),
+#                       diff_log_oil_price = log_oil_price - lag(log_oil_price))
+# 
+# #saveRDS(oil, file = "01_data/02_processed/cleaned_oil.rds")
