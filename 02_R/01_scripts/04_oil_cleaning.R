@@ -21,6 +21,7 @@ setwd("C:/Users/marcu/Documents/gas-col")
 
 library(tidyverse)
 library(xml2)
+library(zoo)
 
 # Oil in USD
 oil <- read.csv("01_data/01_raw/oil.csv", skip = 4) %>% 
@@ -66,7 +67,25 @@ oil <- oil %>% left_join(fx, by = c("date_day"))
 
 # Calculate price of Brent in Euros per liter
 oil <- oil %>% mutate(brent = (brent/usd_eur)/159 ) %>%
-  select(-c(usd_eur)) 
+  select(-c(usd_eur))
+
+oil <- oil %>% arrange(date_day)
+
+
+# Find the row index of the first non-NA value in 'brent'
+first_non_na <- which(!is.na(oil$brent))[1]
+
+# Keep only the rows from the first non-NA 'brent' value onwards
+oil <- oil[first_non_na:nrow(oil), ]
+
+# Create a complete date sequence
+full_dates <- data.frame(date_day = seq(from = min(oil$date_day), to = max(oil$date_day), by = "day"))
+
+# Merge the full date sequence with your dataset
+oil <- merge(full_dates, oil, by = "date_day", all.x = TRUE)
+
+# Perform linear interpolation on 'brent' column
+oil$brent <- na.approx(oil$brent)
 
 
 saveRDS(oil, file = "01_data/02_processed/cleaned_oil_prices.rds")
