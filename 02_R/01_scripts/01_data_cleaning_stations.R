@@ -70,12 +70,14 @@ population_within_10km <- mapply(population_within_radius,
                                  MoreArgs=list(pop_data = cleaned_population,
                                                radius = 10^4))
 gas_stations$population_within_10km <- population_within_10km
+gas_stations$population_within_10km_sq <- population_within_10km^2
 population_within_5km <- mapply(population_within_radius,
                                  lat = gas_stations$lat,
                                  lng = gas_stations$lng,
                                  MoreArgs=list(pop_data = cleaned_population,
                                                radius = 5*10^3))
 gas_stations$population_within_5km <- population_within_5km
+gas_stations$population_within_5km_sq <- population_within_5km^2
 
 competition_metrics_df <- sapply(1:nrow(gas_stations), competition_metrics, df = gas_stations)
 gas_stations <- gas_stations %>% cbind(t(competition_metrics_df)) 
@@ -125,6 +127,7 @@ gas_stations <- gas_stations %>%
          same_brand_as_3rd_nearest_station_phdis = ifelse(!is.na(brand) & !is.na(brand_of_3rd_nearest_station_phdis), brand == brand_of_3rd_nearest_station_phdis, FALSE),
          diff_drdur_2nd_1st = drdur_to_2nd_nearest_station - drdur_to_nearest_station,
          diff_drdis_2nd_1st = drdis_to_2nd_nearest_station - drdis_to_nearest_station,
-         diff_phdis_2nd_1st = phdis_to_2nd_nearest_station - phdis_to_nearest_station)
+         diff_phdis_2nd_1st = phdis_to_2nd_nearest_station - phdis_to_nearest_station,
+         less_than_50m_to_neighbor_phdis = phdis_to_nearest_station < 0.05)
 
 saveRDS(gas_stations, file = "01_data/02_processed/cleaned_gas_stations.rds")
