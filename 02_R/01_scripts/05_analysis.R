@@ -36,6 +36,7 @@ gas_stations <- readRDS("01_data/02_processed/cleaned_gas_stations.rds")
 unique_dates <- sort(unique(analysis_data$date))
 
 # Test hypothesis of strategic pricing
+# TODO: Richer set of controls
 model_phdis <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
                               stations_within_5km + stations_within_10km + stations_within_15km +
                               population_within_10km + stations_per_million_pop_10km|  brand + date  | 0 | brand + date,
@@ -74,58 +75,6 @@ stargazer(model_phdis, model_drdis, model_drdur, model_full, type = "latex",
           label = "") 
 sink()
 
-# Generate first descriptive graph, showing that gas stations with nearest station
-#belonging to the same brand charge higher prices
-coefs_same_brand = data.frame()
-# Loop over all unique dates in analysis_data
-for (d in unique_dates) {
-  print(d)
-  model_e5 <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
-                     stations_within_5km + stations_within_10km + stations_within_15km +
-                     population_within_10km + stations_per_million_pop_10km| brand | 0 | brand,
-                   data = analysis_data %>% filter(date == d),
-                   na.action = na.omit)
-  
-  results = c(summary(model_e5)$coef[1,1], summary(model_e5)$coef[1,2])
-  
-  # Bind the coefficients from the model to the coefs dataframe
-  coefs_same_brand <- coefs_same_brand %>% rbind(results)
-}
-names(coefs_same_brand) <- c("e5", "e5_se")
-coefs_same_brand$date <- unique_dates
-
-# Convert data to a longer format for values and SEs separately
-value_data <- coefs_same_brand %>% select(-ends_with("_se")) %>%
-  gather(key = 'variable', value = 'value', -date)
-
-se_data <- coefs_same_brand %>% select(ends_with("_se"), date) %>%
-  gather(key = 'variable', value = 'se', -date) %>%
-  mutate(variable = sub("_se", "", variable))
-
-# Join the two long data frames
-df_long <- left_join(value_data, se_data, by = c("date", "variable"))
-
-# Plot
-p <- ggplot(df_long, aes(x = date, y = value)) +
-  geom_hline(yintercept = 0, linetype = "solid", linewidth = 0.75, color = "black") +
-  geom_errorbar(
-    aes(ymin = value - 1.96 * se, ymax = value + 1.96 * se),
-    width = 0.2,
-    color = "lightgray",
-    alpha = 0.7
-  ) +
-  geom_line() +
-  facet_wrap(~variable, ncol = 1, scales = "free_y") +
-  ylim(-0.0025, 0.015) +
-  theme_minimal()+
-  theme(
-    panel.grid.major = element_line(color = "darkgray"),  # Change color of major gridlines
-    panel.grid.minor = element_line(color = "lightgray")    # Change color of minor gridlines
-  )
-
-# Save the plot
-ggsave("03_outputs/figures/20231030_fig_samebrand_overtime.png", p, width = 9, height = 4)
-
 
 brand_list <- gas_stations %>% filter(!is.na(brand)) %>% group_by(brand) %>% 
   summarise(n = n()) %>% arrange(-n) %>% filter(n > 25) %>% mutate(t_stat = NA,
@@ -143,6 +92,7 @@ for (b in brand_list$brand){
   
   model_brand_coef <- summary(model_brand)$coef
   
+  
   brand_list$t_stat[which(brand_list$brand == b)] <- model_brand_coef[1,3]
   brand_list$p_val[which(brand_list$brand == b)] <- model_brand_coef[1,4]
   
@@ -155,6 +105,7 @@ analysis_data$strategic_ps <- analysis_data$brand %in% strategic_ps_list
 analysis_data$neighbor_strategic_ps <- analysis_data$brand_of_nearest_station_phdis %in% strategic_ps_list
 
 collusion_matrix_firms <- brand_list %>% filter(brand %in% strategic_ps_list & n > 500) %>% select(brand) %>% pull() 
+collusion_coef_matrix <- data.frame()
 collusion_t_matrix <- data.frame()
 collusion_alpha_matrix <- data.frame()
 for(b in collusion_matrix_firms){
@@ -174,10 +125,12 @@ for(b in collusion_matrix_firms){
   t_model_coef <- t(model_coef)
   
   for(b2 in collusion_matrix_firms){
+    collusion_coef_matrix[b,b2] <- tryCatch({t_model_coef[1, b2]}, error = function(e) {return(NA)})
     collusion_t_matrix[b,b2] <- tryCatch({t_model_coef[3, b2]}, error = function(e) {return(NA)})
     collusion_alpha_matrix[b,b2] <- tryCatch({t_model_coef[1, b2]}, error = function(e) {return(NA)}) /t_model_coef[1, b]
   }
 }
+rownames(collusion_coef_matrix) <- collusion_matrix_firms
 rownames(collusion_t_matrix) <- collusion_matrix_firms
 rownames(collusion_alpha_matrix) <- collusion_matrix_firms
 print(xtable(collusion_t_matrix), type = "latex", file = "03_outputs/tables/20231030_col_t_mat.tex", 
@@ -240,6 +193,227 @@ stargazer(model_1, model_2, model_3, model_4, type = "latex",
           title = "", 
           label = "") 
 sink()
+
+# Derive unilateral and coordinated market power
+analysis_data <- analysis_data %>% mutate(unilateral_mkt_pwr = ifelse((brand %in% collusion_matrix_firms) & 
+                                           same_brand_as_nearest_station_phdis,
+                                           collusion_coef_matrix[brand, brand][[1]],0),
+                                          coordinated_mkt_pwr = ifelse((brand %in% collusion_matrix_firms) & 
+                                           (brand_of_nearest_station_phdis %in% collusion_matrix_firms) &
+                                           !same_brand_as_nearest_station_phdis,
+                                           collusion_coef_matrix[brand, brand_of_nearest_station_phdis][[1]],0) )
+
+analysis_data <- analysis_data %>% mutate(diff_e5_1 = ifelse(stid == lag(stid, n = 1), lag(e5, n = 0) - lag(e5, n = 1), NA),
+                                          diff_e5_2 = ifelse(stid == lag(stid, n = 2), lag(e5, n = 1) - lag(e5, n = 2), NA),
+                                          diff_e5_3 = ifelse(stid == lag(stid, n = 3), lag(e5, n = 2) - lag(e5, n = 3), NA),
+                                          diff_e5_4 = ifelse(stid == lag(stid, n = 4), lag(e5, n = 3) - lag(e5, n = 4), NA),
+                                          diff_e5_5 = ifelse(stid == lag(stid, n = 5), lag(e5, n = 4) - lag(e5, n = 5), NA),
+                                          diff_e5_6 = ifelse(stid == lag(stid, n = 6), lag(e5, n = 5) - lag(e5, n = 6), NA),
+                                          diff_e5_7 = ifelse(stid == lag(stid, n = 7), lag(e5, n = 6) - lag(e5, n = 7), NA),
+                                          diff_e5_8 = ifelse(stid == lag(stid, n = 8), lag(e5, n = 7) - lag(e5, n = 8), NA),
+                                          diff_e5_9 = ifelse(stid == lag(stid, n = 9), lag(e5, n = 8) - lag(e5, n = 9), NA),
+                                          diff_e5_10 = ifelse(stid == lag(stid, n = 10), lag(e5, n = 9) - lag(e5, n = 10), NA),
+                                          oil = brent,
+                                          diff_oil_1 = ifelse(stid == lag(stid, n = 1), lag(oil, n = 0) - lag(oil, n = 1), NA),
+                                          diff_oil_2 = ifelse(stid == lag(stid, n = 2), lag(oil, n = 1) - lag(oil, n = 2), NA),
+                                          diff_oil_3 = ifelse(stid == lag(stid, n = 3), lag(oil, n = 2) - lag(oil, n = 3), NA),
+                                          diff_oil_4 = ifelse(stid == lag(stid, n = 4), lag(oil, n = 3) - lag(oil, n = 4), NA),
+                                          diff_oil_5 = ifelse(stid == lag(stid, n = 5), lag(oil, n = 4) - lag(oil, n = 5), NA),
+                                          diff_oil_6 = ifelse(stid == lag(stid, n = 6), lag(oil, n = 5) - lag(oil, n = 6), NA),
+                                          diff_oil_7 = ifelse(stid == lag(stid, n = 7), lag(oil, n = 6) - lag(oil, n = 7), NA),
+                                          diff_oil_8 = ifelse(stid == lag(stid, n = 8), lag(oil, n = 7) - lag(oil, n = 8), NA),
+                                          diff_oil_9 = ifelse(stid == lag(stid, n = 9), lag(oil, n = 8) - lag(oil, n = 9), NA),
+                                          diff_oil_10 = ifelse(stid == lag(stid, n = 10), lag(oil, n = 9) - lag(oil, n = 10), NA),
+                                          diff_oil_11 = ifelse(stid == lag(stid, n = 11), lag(oil, n = 10) - lag(oil, n = 11), NA),
+                                          diff_oil_12 = ifelse(stid == lag(stid, n = 12), lag(oil, n = 11) - lag(oil, n = 12), NA),
+                                          diff_oil_13 = ifelse(stid == lag(stid, n = 13), lag(oil, n = 12) - lag(oil, n = 13), NA),
+                                          diff_oil_14 = ifelse(stid == lag(stid, n = 14), lag(oil, n = 13) - lag(oil, n = 14), NA),
+                                          diff_oil_15 = ifelse(stid == lag(stid, n = 15), lag(oil, n = 14) - lag(oil, n = 15), NA),
+                                          diff_oil_16 = ifelse(stid == lag(stid, n = 16), lag(oil, n = 15) - lag(oil, n = 16), NA),
+                                          diff_oil_17 = ifelse(stid == lag(stid, n = 17), lag(oil, n = 16) - lag(oil, n = 17), NA),
+                                          diff_oil_18 = ifelse(stid == lag(stid, n = 18), lag(oil, n = 17) - lag(oil, n = 18), NA),
+                                          diff_oil_19 = ifelse(stid == lag(stid, n = 19), lag(oil, n = 18) - lag(oil, n = 19), NA),
+                                          diff_oil_20 = ifelse(stid == lag(stid, n = 20), lag(oil, n = 19) - lag(oil, n = 20), NA))
+
+analysis_data <- analysis_data %>%
+  group_by(stid) %>%
+  do({
+    model <- lm(e5 ~ oil, data = .)
+    residuals <- broom::augment(model)$`.resid`
+    data.frame(., ect = residuals)
+  })
+
+model <- felm(diff_e5 ~ lag(ect) + diff_oil_1 + diff_oil_2 + diff_oil_3 + diff_oil_4 + diff_oil_5 +
+                diff_oil_6 + diff_oil_7 + diff_oil_8 + diff_oil_9 + diff_oil_10 +
+                diff_oil_11 + diff_oil_12 + diff_oil_13 + diff_oil_14 + diff_oil_15 +
+                diff_oil_16 + diff_oil_17 + diff_oil_18 + diff_oil_19 + diff_oil_20 +
+                diff_e5_2 + diff_e5_3 + diff_e5_4 + diff_e5_5 + diff_e5_6 + diff_e5_7  +diff_e5_8 +
+                diff_e5_9 + diff_e5_10| 0 | 0 |stid + date,data = analysis_data)
+summary(model)
+
+model2 <- felm(diff_e5_1 ~ lag(ect) + I(diff_oil_1*(diff_oil_1 < 0)) + I(diff_oil_1*(diff_oil_1 > 0)) + I(diff_oil_2*(diff_oil_2 < 0)) + I(diff_oil_2*(diff_oil_2 > 0)) +
+                 I(diff_oil_3*(diff_oil_3 < 0)) + I(diff_oil_3*(diff_oil_3 > 0)) + I(diff_oil_4*(diff_oil_4 < 0)) + I(diff_oil_4*(diff_oil_4 > 0)) +
+                 I(diff_oil_5*(diff_oil_5 < 0)) + I(diff_oil_5*(diff_oil_5 > 0)) + I(diff_oil_6*(diff_oil_6 < 0)) + I(diff_oil_6*(diff_oil_6 > 0)) +
+                 I(diff_oil_7*(diff_oil_7 < 0)) + I(diff_oil_7*(diff_oil_7 > 0)) + I(diff_oil_8*(diff_oil_8 < 0)) + I(diff_oil_8*(diff_oil_8 > 0)) +
+                 I(diff_oil_9*(diff_oil_9 < 0)) + I(diff_oil_9*(diff_oil_9 > 0)) + I(diff_oil_10*(diff_oil_10 < 0)) + I(diff_oil_10*(diff_oil_10 > 0))+
+                 diff_e5_2 + diff_e5_3 + diff_e5_4 + diff_e5_5 + diff_e5_6 + diff_e5_7  +diff_e5_8 +
+                 diff_e5_9 + diff_e5_10| 0 | 0 |stid +date , data = analysis_data)
+coefs2 <- model2$coefficients[3:22,1]
+cumulative2 <- data.frame(down = numeric(10), up = numeric(10))
+for (n in 1:10) {
+  cumulative2$down[n] <- sum(coefs2[seq(1, 2*n-1, 2)])
+  cumulative2$up[n] <- sum(coefs2[seq(2, 2*n, 2)])
+}
+View(cumulative2)
+
+
+
+model3 <- felm(diff_e5_1 ~ lag(ect) + I(diff_oil_1*(diff_oil_1 < 0)) + I(diff_oil_1*(diff_oil_1 > 0)) + I(diff_oil_2*(diff_oil_2 < 0)) + I(diff_oil_2*(diff_oil_2 > 0)) +
+                 I(diff_oil_3*(diff_oil_3 < 0)) + I(diff_oil_3*(diff_oil_3 > 0)) + I(diff_oil_4*(diff_oil_4 < 0)) + I(diff_oil_4*(diff_oil_4 > 0)) +
+                 I(diff_oil_5*(diff_oil_5 < 0)) + I(diff_oil_5*(diff_oil_5 > 0)) + I(diff_oil_6*(diff_oil_6 < 0)) + I(diff_oil_6*(diff_oil_6 > 0)) +
+                 I(diff_oil_7*(diff_oil_7 < 0)) + I(diff_oil_7*(diff_oil_7 > 0)) + I(diff_oil_8*(diff_oil_8 < 0)) + I(diff_oil_8*(diff_oil_8 > 0)) +
+                 I(diff_oil_9*(diff_oil_9 < 0)) + I(diff_oil_9*(diff_oil_9 > 0)) + I(diff_oil_10*(diff_oil_10 < 0)) + I(diff_oil_10*(diff_oil_10 > 0))+
+                 diff_e5_2 + diff_e5_3 + diff_e5_4 + diff_e5_5 + diff_e5_6 + diff_e5_7  +diff_e5_8 +
+                 diff_e5_9 + diff_e5_10| 0 | 0 |stid, data = analysis_data %>% filter(brand %in% collusion_matrix_firms & unilateral_mkt_pwr == 0 & coordinated_mkt_pwr == 0))
+coefs3 <- model3$coefficients[3:22,1]
+cumulative3 <- data.frame(down = numeric(10), up = numeric(10))
+for (n in 1:10) {
+  cumulative3$down[n] <- sum(coefs3[seq(1, 2*n-1, 2)])
+  cumulative3$up[n] <- sum(coefs3[seq(2, 2*n, 2)])
+}
+
+
+
+model4 <- felm(diff_e5_1 ~ lag(ect) + I(diff_oil_1*(diff_oil_1 < 0)) + I(diff_oil_1*(diff_oil_1 > 0)) + I(diff_oil_2*(diff_oil_2 < 0)) + I(diff_oil_2*(diff_oil_2 > 0)) +
+                 I(diff_oil_3*(diff_oil_3 < 0)) + I(diff_oil_3*(diff_oil_3 > 0)) + I(diff_oil_4*(diff_oil_4 < 0)) + I(diff_oil_4*(diff_oil_4 > 0)) +
+                 I(diff_oil_5*(diff_oil_5 < 0)) + I(diff_oil_5*(diff_oil_5 > 0)) + I(diff_oil_6*(diff_oil_6 < 0)) + I(diff_oil_6*(diff_oil_6 > 0)) +
+                 I(diff_oil_7*(diff_oil_7 < 0)) + I(diff_oil_7*(diff_oil_7 > 0)) + I(diff_oil_8*(diff_oil_8 < 0)) + I(diff_oil_8*(diff_oil_8 > 0)) +
+                 I(diff_oil_9*(diff_oil_9 < 0)) + I(diff_oil_9*(diff_oil_9 > 0)) + I(diff_oil_10*(diff_oil_10 < 0)) + I(diff_oil_10*(diff_oil_10 > 0))+
+                 diff_e5_2 + diff_e5_3 + diff_e5_4 + diff_e5_5 + diff_e5_6 + diff_e5_7  +diff_e5_8 +
+                 diff_e5_9 + diff_e5_10| 0 | 0 |stid, data = analysis_data %>% filter(brand %in% collusion_matrix_firms & unilateral_mkt_pwr > 0 & coordinated_mkt_pwr == 0))
+coefs4 <- model4$coefficients[3:22,1]
+cumulative4 <- data.frame(down = numeric(10), up = numeric(10))
+for (n in 1:10) {
+  cumulative4$down[n] <- sum(coefs4[seq(1, 2*n-1, 2)])
+  cumulative4$up[n] <- sum(coefs4[seq(2, 2*n, 2)])
+}
+View(cumulative4)
+
+
+model5 <- felm(diff_e5_1 ~ lag(ect) + I(diff_oil_1*(diff_oil_1 < 0)) + I(diff_oil_1*(diff_oil_1 > 0)) + I(diff_oil_2*(diff_oil_2 < 0)) + I(diff_oil_2*(diff_oil_2 > 0)) +
+                 I(diff_oil_3*(diff_oil_3 < 0)) + I(diff_oil_3*(diff_oil_3 > 0)) + I(diff_oil_4*(diff_oil_4 < 0)) + I(diff_oil_4*(diff_oil_4 > 0)) +
+                 I(diff_oil_5*(diff_oil_5 < 0)) + I(diff_oil_5*(diff_oil_5 > 0)) + I(diff_oil_6*(diff_oil_6 < 0)) + I(diff_oil_6*(diff_oil_6 > 0)) +
+                 I(diff_oil_7*(diff_oil_7 < 0)) + I(diff_oil_7*(diff_oil_7 > 0)) + I(diff_oil_8*(diff_oil_8 < 0)) + I(diff_oil_8*(diff_oil_8 > 0)) +
+                 I(diff_oil_9*(diff_oil_9 < 0)) + I(diff_oil_9*(diff_oil_9 > 0)) + I(diff_oil_10*(diff_oil_10 < 0)) + I(diff_oil_10*(diff_oil_10 > 0))+
+                 diff_e5_2 + diff_e5_3 + diff_e5_4 + diff_e5_5 + diff_e5_6 + diff_e5_7  +diff_e5_8 +
+                 diff_e5_9 + diff_e5_10| 0 | 0 |stid, data = analysis_data %>% filter(brand %in% collusion_matrix_firms & unilateral_mkt_pwr == 0 & coordinated_mkt_pwr > 0))
+coefs5 <- model5$coefficients[3:22,1]
+cumulative5 <- data.frame(down = numeric(10), up = numeric(10))
+for (n in 1:10) {
+  cumulative5$down[n] <- sum(coefs5[seq(1, 2*n-1, 2)])
+  cumulative5$up[n] <- sum(coefs5[seq(2, 2*n, 2)])
+}
+View(cumulative5)
+
+
+
+
+
+
+
+
+model6 <- felm(diff_e5 ~ diff_oil_1 + I(diff_oil_1*(unilateral_mkt_pwr>0)) + diff_oil_2 + I(diff_oil_2*(unilateral_mkt_pwr>0)) +
+                 diff_oil_3 + I(diff_oil_3*(unilateral_mkt_pwr>0)) + diff_oil_4 + I(diff_oil_4*(unilateral_mkt_pwr>0)) +
+                 diff_oil_5 + I(diff_oil_5*(unilateral_mkt_pwr>0)) + diff_oil_6 + I(diff_oil_6*(unilateral_mkt_pwr>0)) +
+                 diff_oil_7 + I(diff_oil_7*(unilateral_mkt_pwr>0)) + diff_oil_8 + I(diff_oil_8*(unilateral_mkt_pwr>0)) +
+                 diff_oil_9 + I(diff_oil_9*(unilateral_mkt_pwr>0)) + diff_oil_10 + I(diff_oil_10*(unilateral_mkt_pwr>0)) +
+                 diff_e5_2 + diff_e5_3 + diff_e5_4 + diff_e5_5 + diff_e5_6 + diff_e5_7  +diff_e5_8 +
+                 diff_e5_9 + diff_e5_10| 0 | 0 |stid, data = analysis_data%>% filter(brand %in% collusion_matrix_firms) )
+summary(model6)
+
+
+model7 <- felm(diff_e5 ~ diff_oil_1 + I(diff_oil_1*(coordinated_mkt_pwr>0.002)) + diff_oil_2 + I(diff_oil_2*(coordinated_mkt_pwr>0.002)) +
+                 diff_oil_3 + I(diff_oil_3*(coordinated_mkt_pwr>0.002)) + diff_oil_4 + I(diff_oil_4*(coordinated_mkt_pwr>0.002)) +
+                 diff_oil_5 + I(diff_oil_5*(coordinated_mkt_pwr>0.002)) + diff_oil_6 + I(diff_oil_6*(coordinated_mkt_pwr>0.002)) +
+                 diff_oil_7 + I(diff_oil_7*(coordinated_mkt_pwr>0.002)) + diff_oil_8 + I(diff_oil_8*(coordinated_mkt_pwr>0.002)) +
+                 diff_oil_9 + I(diff_oil_9*(coordinated_mkt_pwr>0.002)) + diff_oil_10 + I(diff_oil_10*(coordinated_mkt_pwr>0.002)) +
+                 diff_e5_2 + diff_e5_3 + diff_e5_4 + diff_e5_5 + diff_e5_6 + diff_e5_7  +diff_e5_8 +
+                 diff_e5_9 + diff_e5_10| 0 | 0 |stid+date, data = analysis_data%>% filter(brand %in% collusion_matrix_firms) )
+summary(model7)
+
+# Find the Monday of the week for each date
+analysis_data$week <- floor_date(analysis_data$date, "week")
+
+# Aggregate to weekly level, grouping by stid and week
+# Calculate means for specified variables
+weekly_data <- analysis_data %>%
+  group_by(stid, week) %>%
+  summarize(
+    mean_e5 = mean(e5, na.rm = TRUE),
+    mean_oil_price = mean(brent, na.rm = TRUE),
+    mean_unilateral_mkt_pwr = mean(unilateral_mkt_pwr, na.rm = TRUE),
+    mean_coordinated_mkt_pwr = mean(coordinated_mkt_pwr, na.rm = TRUE),
+    brand = first(brand)
+  )
+
+weekly_data <- weekly_data %>% filter(!is.na(mean_oil_price))
+
+weekly_data <- weekly_data %>%
+  group_by(stid) %>%
+  do({
+    model <- lm(mean_e5 ~ mean_oil_price, data = .)
+    residuals <- broom::augment(model)$`.resid`
+    data.frame(., ect = residuals)
+  })
+
+
+model <- felm( I( ifelse(stid == lag(stid) & stid == lag(lag(stid)), I(mean_e5 - lag(mean_e5)), NA)) ~ lag(ect) +
+                 I(mean_oil_price - lag(mean_oil_price)) +
+                 I(mean_oil_price - lag(mean_oil_price) > 0) +
+                 I(lag(mean_oil_price - lag(mean_oil_price)))+
+                 I(lag(mean_oil_price - lag(mean_oil_price))>0) +
+                 I(lag(lag(mean_oil_price - lag(mean_oil_price))))+
+                 I(lag(lag(mean_oil_price - lag(mean_oil_price))) > 0) +
+                 I(lag(mean_e5 - lag(mean_e5)))+
+                 I(lag(lag(mean_e5 - lag(mean_e5))))| 0  | 0 | brand + week, data = weekly_data)
+model %>% summary()
+
+
+model <- felm( I( ifelse(stid == lag(stid) & stid == lag(lag(stid)), I(mean_e5 - lag(mean_e5)), NA)) ~ lag(ect) +
+                 I(mean_oil_price - lag(mean_oil_price)) +
+                 I(mean_oil_price - lag(mean_oil_price)*(mean_unilateral_mkt_pwr >0)) +
+                 I(mean_oil_price - lag(mean_oil_price)*(mean_coordinated_mkt_pwr > 0.005)) +
+                 I(mean_oil_price - lag(mean_oil_price) > 0) +
+                 I(((mean_oil_price - lag(mean_oil_price))>0)*(mean_unilateral_mkt_pwr >0)) +
+                 I(((mean_oil_price - lag(mean_oil_price))>0)*(mean_coordinated_mkt_pwr > 0.005)) +
+                 I(lag(mean_oil_price - lag(mean_oil_price)))+
+                 I(lag(mean_oil_price - lag(mean_oil_price))*(mean_unilateral_mkt_pwr >0)) +
+                 I(lag(mean_oil_price - lag(mean_oil_price))*(mean_coordinated_mkt_pwr > 0.005)) +
+                 I(lag(mean_oil_price - lag(mean_oil_price))>0) +
+                 I((lag(mean_oil_price - lag(mean_oil_price))>0)*(mean_unilateral_mkt_pwr >0)) +
+                 I((lag(mean_oil_price - lag(mean_oil_price))>0)*(mean_coordinated_mkt_pwr > 0.005)) +
+                 I(lag(lag(mean_oil_price - lag(mean_oil_price))))+
+                 I(lag(lag(mean_oil_price - lag(mean_oil_price)))*(mean_unilateral_mkt_pwr >0)) +
+                 I(lag(lag(mean_oil_price - lag(mean_oil_price)))*(mean_coordinated_mkt_pwr > 0.005)) +
+                 I(lag(lag(mean_oil_price - lag(mean_oil_price))) > 0) +
+                 I(((lag(lag(mean_oil_price - lag(mean_oil_price)))>0))*(mean_unilateral_mkt_pwr >0)) +
+                 I((lag(lag(mean_oil_price - lag(mean_oil_price)))>0)*(mean_coordinated_mkt_pwr > 0.005))+
+                 I(lag(mean_e5 - lag(mean_e5)))+
+                 I(lag(lag(mean_e5 - lag(mean_e5))))| 0  | 0 | stid + week, data = weekly_data)
+model %>% summary()
+
+model <- felm( I( ifelse(stid == lag(stid), I(mean_e5 - lag(mean_e5)), NA)) ~ ect +
+                 I(mean_oil_price - lag(mean_oil_price)) +
+                 I(mean_oil_price - lag(mean_oil_price) > 0) +
+                 I(lag(mean_oil_price - lag(mean_oil_price)))+
+                 I(lag(mean_oil_price - lag(mean_oil_price))>0) +
+                 I((lag(mean_oil_price - lag(mean_oil_price))>0)*mean_coordinated_mkt_pwr) +
+                 I(lag(lag(mean_oil_price - lag(mean_oil_price))))+
+                 I(lag(lag(mean_oil_price - lag(mean_oil_price))) > 0)|  0  | 0 | stid + week, data = weekly_data)
+model %>% summary()
+
+
+
 ############################################
 ############################################
 ############################################
@@ -1307,9 +1481,130 @@ for_merge <- gas_stations %>% select(id, apt_t, apt_coef, apt_corr)
 
 analysis_data_2 <- analysis_data %>% left_join(for_merge, by = c("stid" = "id"))
 
-model <- felm(log_e5 ~ I(apt_corr<0) +  same_brand_as_nearest_station_phdis +
+model <- felm(log_e5 ~ apt_coef +  same_brand_as_nearest_station_phdis +
        stations_within_5km + stations_within_10km + stations_within_15km +
-       population_within_10km + stations_per_million_pop_10km|   date  | 0 | date,
+       population_within_10km + stations_per_million_pop_10km| brand + date  | 0 | brand + date,
      data = analysis_data_2,
      na.action = na.omit)
 summary(model)
+
+getMondayOfWeek <- function(date) {
+  # Convert input to a Date object if it's not already
+  date <- as.Date(date)
+  
+  # Find the weekday as a number (1 = Monday, 7 = Sunday)
+  weekday <- as.integer(format(date, "%u"))
+  
+  # Calculate the date of the Monday of the week
+  mondayDate <- date - (weekday - 1)
+  
+  return(mondayDate)
+}
+
+analysis_data_week <- analysis_data %>% mutate(week = getMondayOfWeek(date)) %>% 
+  group_by(stid, week) %>% summarize(e5 = mean(e5)) %>%
+  mutate(log_e5 = log(e5)) %>% 
+  arrange(stid, week) %>%
+  mutate(diff_log_e5 = ifelse(stid == lag(stid), log_e5 - lag(log_e5) , NA))
+
+analysis_data_week <- analysis_data_week %>% left_join(cleaned_oil, by = "week")
+
+analysis_data_week <- analysis_data_week %>% left_join(gas_stations, by = c("stid" = "id"))
+
+model <- lm(diff_log_e5 ~ 0 +
+             I( lag(diff_log_oil_price, n=0) ) +
+             I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+             I( as.numeric(same_brand_as_nearest_station_phdis) * lag(diff_log_oil_price, n=0) ) +
+             I( as.numeric(same_brand_as_nearest_station_phdis) * lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)),
+           data = analysis_data_week )
+summary(model)
+
+model <- lm(diff_log_e5 ~ 0 +
+              I( lag(diff_log_oil_price, n=1)) +
+              I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+              lag(res),
+            data = analysis_data_week )
+summary(model)
+
+model$coefficients[4][[1]]
+
+unique_stid <- gas_stations$id
+gas_stations$apt_coef <- NA
+
+for (i in 1:length(unique_stid)){
+  stid_var <- unique_stid[i]
+  print(i)
+  reg_data <- analysis_data %>% filter(stid == stid_var)
+  
+  try({
+    model <- lm(diff_log_e5 ~ 0 +
+                  I( lag(diff_log_oil_price, n=0)) +
+                  I( lag(diff_log_oil_price, n=1)) +
+                  I( lag(diff_log_oil_price, n=2)) +
+                  I( lag(diff_log_oil_price, n=0) * as.numeric(lag(diff_log_oil_price, n=0) > 0)) +
+                  I( lag(diff_log_oil_price, n=1) * as.numeric(lag(diff_log_oil_price, n=1) > 0)) +
+                  I( lag(diff_log_oil_price, n=2) * as.numeric(lag(diff_log_oil_price, n=2) > 0)) ,
+                data = analysis_data_week %>% filter(stid == stid_var))
+    
+    gas_stations$apt_coef[i] <- model$coefficients[4][[1]]
+  })
+  print(gas_stations$apt_coef[i])
+}
+
+model <- lm(e5 ~ oil_price, data = analysis_data_week)
+summary(model)
+analysis_data_week$res <- model$residuals
+
+
+summary(model_phdis)
+model_phdis2 <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
+                      stations_within_5km + stations_within_10km + stations_within_15km +
+                      population_within_10km + stations_per_million_pop_10km+
+                      I(phdis_to_nearest_station < 0.05) |  brand + date  | 0 | brand + date,
+                    data = analysis_data,
+                    na.action = na.omit)
+summary(model_phdis2)
+
+
+model_phdis3 <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
+                       stations_within_5km + stations_within_10km + stations_within_15km +
+                       population_within_10km + stations_per_million_pop_10km+
+                       I(phdis_to_nearest_station < 0.1) |  brand + date  | 0 | brand + date,
+                     data = analysis_data,
+                     na.action = na.omit)
+summary(model_phdis3)
+
+
+model_full <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
+                     same_brand_as_nearest_station_drdis +
+                     same_brand_as_nearest_station_drdur +
+                     stations_within_5km + stations_within_10km + stations_within_15km +
+                     population_within_10km + I(population_within_10km^2) + 
+                     population_within_5km + I(population_within_5km^2) + stations_per_million_pop_10km+
+                     I(phdis_to_nearest_station < 0.05)|  brand + date  | 0 | stid + date,
+                   data = analysis_data,
+                   na.action = na.omit)
+summary(model_full)
+
+
+model_full <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
+                     same_brand_as_nearest_station_drdis +
+                     same_brand_as_nearest_station_drdur +
+                     stations_within_5km + stations_within_10km + stations_within_15km +
+                     population_within_10km + stations_per_million_pop_10km+
+                     I(phdis_to_nearest_station < 0.05) +
+                     I((phdis_to_nearest_station < 0.05)*same_brand_as_nearest_station_phdis)|  brand + date  | 0 | stid + date,
+                   data = analysis_data,
+                   na.action = na.omit)
+summary(model_full)
+
+
+model_phdis3 <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
+                       stations_within_5km + stations_within_10km + stations_within_15km +
+                       population_within_10km + I(population_within_10km^2) + 
+                       population_within_5km + I(population_within_5km^2) + 
+                       stations_per_million_pop_10km+
+                       I(phdis_to_nearest_station < 0.05) |  brand + date  | 0 | brand + date,
+                       data = analysis_data,
+                       na.action = na.omit)
+summary(model_phdis3)
