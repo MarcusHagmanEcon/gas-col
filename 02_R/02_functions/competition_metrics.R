@@ -15,7 +15,7 @@ competition_metrics <- function(index, df){
   phdis <- replace(phdis, phdis == 0, Inf)
   phdis_rank <- rank(phdis, ties.method = "first")
   
-  number_close <- 10 # Indicates number of stations to find duration to
+  number_close <- 5 # Indicates number of stations to find duration to
   drdis_drdur_nearest <- mapply(driving_duration,
                                 lat1 = rep(target_lat, number_close),
                                 lng1 = rep(target_lng, number_close),
