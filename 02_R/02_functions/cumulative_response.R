@@ -11,7 +11,9 @@ cumulative_response <- function(model, row_indices, col_label){
     result[which(row_indices == i), paste0(col_label, "_coef")] <-
       sum(model$coefficients[row_indices[1:which(row_indices == i)]])
     result[which(row_indices == i), paste0(col_label, "_se")] <-
-      sum(vcov(model)[row_indices[1:which(row_indices == i)], row_indices[1:which(row_indices == i)]])
+      sum(vcov(model)[row_indices[1:which(row_indices == i)],
+                      row_indices[1:which(row_indices == i)]]) %>%
+      sqrt()
   }
   return(result)
 }

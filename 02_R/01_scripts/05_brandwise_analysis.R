@@ -7,8 +7,10 @@
 # Purpose: This script runs regression on a per-brand level
 #
 # Input: - 01_data/02_processed/analysis_data.rds
+#        - 01_data/02_processed/cleaned_gas_stations.rds
 # 
-# Output: Tables and graphs
+# Output: - Graphs
+#         - 01_data/02_processed/brand_df.rds
 #
 # Instructions: 
 #
@@ -20,6 +22,7 @@ rm(list=ls())
 setwd("C:/Users/marcu/Documents/gas-col")
 
 library(tidyverse)
+library(lfe)
 
 # Load data
 analysis_data <- readRDS("01_data/02_processed/analysis_data.rds")
@@ -35,7 +38,10 @@ for (b in brand_df$brand){
   
   model_brand <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
                         stations_within_5km + stations_within_10km + stations_within_15km +
-                        population_within_10km + stations_per_million_pop_10km| date | 0 | date + stid ,
+                        population_within_5km + population_within_10km + 
+                        population_within_5km_sq + population_within_10km_sq + 
+                        stations_per_million_pop_10km + 
+                        less_than_50m_to_neighbor_phdis| date | 0 | date + stid ,
                       data = reg_data,
                       na.action = na.omit)
   
@@ -68,7 +74,7 @@ plot1 <- ggplot(brand_df, aes(x = coef, y = brand)) +
        x = "Coefficient Estimate",
        y = "Brand")
 
-ggsave("03_outputs/figures/20231205_brand_coef.png", plot1, width = 10, height = 6)
+ggsave("03_outputs/figures/20231206_brand_coef.png", plot1, width = 10, height = 6)
 
 sps_list <- brand_df %>% arrange(-n) %>% filter(t_stat>2) %>% select(brand) %>%
   mutate(brand = as.character(brand)) %>% pull
@@ -90,9 +96,11 @@ for (b in sps_list){
   
   # Create the formula string
   formula_str <- paste("log_e5 ~", paste(paste0(sps_list, "_neighbor_brand"), collapse = " + "),
-                       "+ stations_within_5km + stations_within_10km + 
-                       stations_within_15km + population_within_10km + stations_per_million_pop_10km",
-                       "| date | 0 | date + stid")
+                       "+ stations_within_5km + stations_within_10km + stations_within_15km +
+                        population_within_5km + population_within_10km + 
+                        population_within_5km_sq + population_within_10km_sq + 
+                        stations_per_million_pop_10km + 
+                        less_than_50m_to_neighbor_phdis | date | 0 | date + stid")
   
   # Convert to a formula
   model_formula <- formula(formula_str)
@@ -141,7 +149,7 @@ plot2 <- ggplot(long_brand_df, aes(x = coef, y = brand_type)) +
        y = "Brand")
 plot2
 
-ggsave("03_outputs/figures/20231205_brand_pair_coef.png", plot2, width = 10, height = 6)
+ggsave("03_outputs/figures/20231206_brand_pair_coef.png", plot2, width = 10, height = 6)
 
 
 

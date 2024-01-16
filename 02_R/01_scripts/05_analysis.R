@@ -29,114 +29,12 @@ library(lmtest)
 #library(plyr)
 source("02_R/02_functions/cumulative_response.R")
 
-# Load data
-analysis_data <- readRDS("01_data/02_processed/analysis_data.rds")
-gas_stations <- readRDS("01_data/02_processed/cleaned_gas_stations.rds")
-brand_df <- readRDS("01_data/02_processed/brand_df.rds")
-
-# Big brands
-big_brands <- brand_df %>% mutate(brand = as.character(brand)) %>% select(brand) %>%
-  pull()
-# SPS
-sps_brands <- brand_df %>% filter(t_stat > 2) %>% mutate(brand = as.character(brand)) %>% select(brand) %>%
-  pull()
-
-analysis_data <- analysis_data %>% rename(oil = brent) %>%
-  mutate(e5 = e5/100)
-
-analysis_data <- analysis_data %>% 
-  mutate(unilateral_mkt_pwr = ifelse((brand %in% sps_brands) & 
-    (brand_of_nearest_station_phdis == brand), brand_df[which(brand_df[,1] == brand),
-                                                            paste0(brand, "_t_stat")][[1]] > 1.96,0),
-    coordinated_mkt_pwr = ifelse((brand %in% sps_brands) & 
-      (brand_of_nearest_station_phdis %in% sps_brands) & 
-      (brand != brand_of_nearest_station_phdis), brand_df[which(brand_df[,1] == brand),
-       paste0(brand_of_nearest_station_phdis, "_t_stat")][[1]] > 1.96,0))
-
-analysis_data <- analysis_data %>% mutate(weekday = weekdays(date))
-
-analysis_data_big <- analysis_data %>% filter(brand %in% big_brands)
-
-analysis_data_big <- analysis_data_big %>%
-  group_by(stid) %>%
-  do({
-    model <- lm(e5 ~ oil, data = .)
-    residuals <- broom::augment(model)$`.resid`
-    data.frame(., ect = residuals)
-  })
-
-analysis_data_big <- analysis_data_big %>%
-  mutate(lag_ect = ifelse(stid == lag(stid, n = 1), lag(ect), NA))
-
-#analysis_data_mondays <- analysis_data_big %>% filter(weekday == "Monday")
-
-for (i in 1:22) {
-  analysis_data_big <- analysis_data_big %>%
-    mutate(!!paste0("diff_e5_", i) := ifelse(stid == lag(stid, n = i), 
-                                             lag(e5, n = i - 1) - lag(e5, n = i), 
-                                             NA),
-           !!paste0("diff_oil_", i) := ifelse(stid == lag(stid, n = i), 
-                                             lag(oil, n = i - 1) - lag(oil, n = i), 
-                                             NA))
-  analysis_data_big[[paste0("diff_oil_pos_", i)]] <- pmax(analysis_data_big[[paste0("diff_oil_", i)]],0)
-  analysis_data_big[[paste0("diff_oil_neg_", i)]] <- pmin(analysis_data_big[[paste0("diff_oil_", i)]],0)
-  analysis_data_big[[paste0("diff_oil_uni_", i)]] <- 
-    ifelse(analysis_data_big$unilateral_mkt_pwr > 0, analysis_data_big[[paste0("diff_oil_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_no_uni_", i)]] <- 
-    ifelse(analysis_data_big$unilateral_mkt_pwr == 0, analysis_data_big[[paste0("diff_oil_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_coord_", i)]] <- 
-    ifelse(analysis_data_big$coordinated_mkt_pwr > 0, analysis_data_big[[paste0("diff_oil_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_no_coord_", i)]] <- 
-    ifelse(analysis_data_big$coordinated_mkt_pwr == 0, analysis_data_big[[paste0("diff_oil_", i)]], 0)
-  
-  analysis_data_big[[paste0("diff_oil_uni_pos_", i)]] <- 
-    ifelse(analysis_data_big$unilateral_mkt_pwr > 0, analysis_data_big[[paste0("diff_oil_pos_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_no_uni_pos_", i)]] <- 
-    ifelse(analysis_data_big$unilateral_mkt_pwr == 0, analysis_data_big[[paste0("diff_oil_pos_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_coord_pos_", i)]] <- 
-    ifelse(analysis_data_big$coordinated_mkt_pwr > 0, analysis_data_big[[paste0("diff_oil_pos_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_no_coord_pos_", i)]] <- 
-    ifelse(analysis_data_big$coordinated_mkt_pwr == 0, analysis_data_big[[paste0("diff_oil_pos_", i)]], 0)
-  
-  analysis_data_big[[paste0("diff_oil_uni_neg_", i)]] <- 
-    ifelse(analysis_data_big$unilateral_mkt_pwr > 0, analysis_data_big[[paste0("diff_oil_neg_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_no_uni_neg_", i)]] <- 
-    ifelse(analysis_data_big$unilateral_mkt_pwr == 0, analysis_data_big[[paste0("diff_oil_neg_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_coord_neg_", i)]] <- 
-    ifelse(analysis_data_big$coordinated_mkt_pwr > 0, analysis_data_big[[paste0("diff_oil_neg_", i)]], 0)
-  analysis_data_big[[paste0("diff_oil_no_coord_neg_", i)]] <- 
-    ifelse(analysis_data_big$coordinated_mkt_pwr == 0, analysis_data_big[[paste0("diff_oil_neg_", i)]], 0)
-}
-
-
-
-
-
-
-
-
-# for (w in 1:3) {
-#   print(w)
-#   analysis_data_mondays <- analysis_data_mondays %>%
-#     mutate(!!paste0("diff_wk_e5_", w) := ifelse(stid == lag(stid, n = w), 
-#                                                 lag(e5, n = w - 1) - lag(e5, n = w), 
-#                                                 NA),
-#            !!paste0("diff_wk_oil_", w) := ifelse(stid == lag(stid, n = w), 
-#                                                  lag(oil, n = w - 1) - lag(oil, n = w), 
-#                                                  NA))
-#   analysis_data_mondays[[paste0("diff_wk_oil_pos_", w)]] <- pmax(analysis_data_mondays[[paste0("diff_wk_oil_", w)]],0)
-#   analysis_data_mondays[[paste0("diff_wk_oil_neg_", w)]] <- pmin(analysis_data_mondays[[paste0("diff_wk_oil_", w)]],0)
-# }
-# analysis_data_mondays <- analysis_data_mondays %>%
-#   mutate(lag_ect = ifelse(stid == lag(stid, n = i), lag(ect), NA))
-
-# Unique dates
-#unique_dates <- sort(unique(analysis_data$date))
-
 
 
 # Test hypothesis of strategic pricing
-# TODO: Richer set of controls
+
+mkt_pwr_est_df <- readRDS("01_data/02_processed/mkt_pwr_est_df.rds")
+
 model_phdis <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
                       stations_within_5km + stations_within_10km + stations_within_15km +
                       population_within_5km + population_within_10km + 
@@ -190,14 +88,16 @@ stargazer(model_phdis, model_drdis, model_drdur, model_full, type = "latex",
           label = "") 
 sink()
 
+rm(mkt_pwr_est_df)
+
 
 ## Model 1: Simple price transmission
+model_1_df  <- readRDS("01_data/02_processed/model_1_df.rds")
 pt_model_1_formula <- "diff_e5_1 ~ " %>%
   paste(paste(paste0("diff_oil_", 1:22), collapse=" + ")) %>%
   paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_1 <- felm(pt_model_1_formula, data = analysis_data_big %>%
-                     select(starts_with("diff_oil_"), starts_with("diff_e5_"), lag_ect, stid, date) )
+pt_model_1 <- felm(pt_model_1_formula, data = model_1_df )
 summary(pt_model_1)
 pt_model_1_crf <- cumulative_response(pt_model_1, 1:22, "all")
 pt_model_1_crf
@@ -210,16 +110,16 @@ pt_model_1_crf_plot <- ggplot(pt_model_1_crf, aes(x = lag, y = all_coef)) +
   theme_minimal()
 pt_model_1_crf_plot
 ggsave("03_outputs/figures/20231211_pt_figure_1.png", pt_model_1_crf_plot, width = 10, height = 6)
-
+rm(model_1_df)
 
 # Model 2: Allow for asymmetry
+model_2_df  <- readRDS("01_data/02_processed/model_2_df.rds")
 pt_model_2_formula <- "diff_e5_1 ~ " %>%
   paste(paste(paste0("diff_oil_pos_", 1:22), collapse=" + ")) %>%
   paste(paste(paste0("diff_oil_neg_", 1:22), collapse=" + "), sep = " + ") %>%
   paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_2 <- felm(pt_model_2_formula, data = analysis_data_big %>%
-                     select(starts_with("diff_oil_pos_"), starts_with("diff_oil_neg_"), starts_with("diff_e5_"), lag_ect, stid, date))
+pt_model_2 <- felm(pt_model_2_formula, data = model_2_df)
 pt_model_2_crf <- cumulative_response(pt_model_2, 1:22, "up") %>% 
   cbind(cumulative_response(pt_model_2, 23:44, "down"))
 pt_model_2_crf$lag <- seq_len(nrow(pt_model_2_crf)) - 1
@@ -243,15 +143,16 @@ pt_model_2_crf_plot <- ggplot() +
   scale_shape_manual(values = c(17, 25))
 pt_model_2_crf_plot
 ggsave("03_outputs/figures/20231211_pt_figure_2.png", pt_model_2_crf_plot, width = 10, height = 6)
-
+rm(model_2_df)
 
 # Model 3: Unilateral Market Power
+model_3_df  <- readRDS("01_data/02_processed/model_3_df.rds")
 pt_model_3_formula <- "diff_e5_1 ~ " %>%
   paste(paste(paste0("diff_oil_uni_", 1:22), collapse=" + ")) %>%
   paste(paste(paste0("diff_oil_no_uni_", 1:22), collapse=" + "), sep = " + ") %>%
   paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_3 <- felm(pt_model_3_formula, data = analysis_data_big)
+pt_model_3 <- felm(pt_model_3_formula, data = model_3_df)
 pt_model_3_crf <- cumulative_response(pt_model_3, 1:22, "up") %>% 
   cbind(cumulative_response(pt_model_3, 23:44, "down"))
 pt_model_3_crf$lag <- seq_len(nrow(pt_model_3_crf)) - 1
@@ -275,15 +176,16 @@ pt_model_3_crf_plot <- ggplot() +
   scale_shape_manual(values = c(17, 25))
 pt_model_3_crf_plot
 ggsave("03_outputs/figures/20231211_pt_figure_3.png", pt_model_3_crf_plot, width = 10, height = 6)
-
+rm(model_3_df)
 
 # Model 4: Coordinated Market Power
+model_4_df  <- readRDS("01_data/02_processed/model_4_df.rds")
 pt_model_4_formula <- "diff_e5_1 ~ " %>%
   paste(paste(paste0("diff_oil_coord_", 1:22), collapse=" + ")) %>%
   paste(paste(paste0("diff_oil_no_coord_", 1:22), collapse=" + "), sep = " + ") %>%
   paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_4 <- felm(pt_model_4_formula, data = analysis_data_big)
+pt_model_4 <- felm(pt_model_4_formula, data = model_4_df)
 pt_model_4_crf <- cumulative_response(pt_model_4, 1:22, "up") %>% 
   cbind(cumulative_response(pt_model_4, 23:44, "down"))
 pt_model_4_crf$lag <- seq_len(nrow(pt_model_3_crf)) - 1
@@ -307,22 +209,19 @@ pt_model_4_crf_plot <- ggplot() +
   scale_shape_manual(values = c(17, 25))
 pt_model_4_crf_plot
 ggsave("03_outputs/figures/20231211_pt_figure_4.png", pt_model_4_crf_plot, width = 10, height = 6)
+rm(model_4_df)
 
 
 # Model 5: Unilateral Market Power asymmetry
+model_5_df  <- readRDS("01_data/02_processed/model_5_df.rds")
 pt_model_5_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("diff_oil_uni_pos_", 1:22), collapse=" + ")) %>%
-  paste(paste(paste0("diff_oil_no_uni_pos_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_oil_uni_neg_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_oil_no_uni_neg_", 1:22), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("m5_diff_oil_uni_pos_", 1:22), collapse=" + ")) %>%
+  paste(paste(paste0("m5_diff_oil_no_uni_pos_", 1:22), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("m5_diff_oil_uni_neg_", 1:22), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("m5_diff_oil_no_uni_neg_", 1:22), collapse=" + "), sep = " + ") %>%
   paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_5 <- felm(pt_model_5_formula, data = analysis_data_big %>%
-                     select(starts_with("diff_oil_uni_pos_"), 
-                            starts_with("diff_oil_no_uni_pos_"),
-                            starts_with("diff_oil_uni_neg_"), 
-                            starts_with("diff_oil_no_uni_neg_"),
-                            starts_with("diff_e5_"), lag_ect, stid, date))
+pt_model_5 <- felm(pt_model_5_formula, data = model_5_df)
 pt_model_5_crf <- cumulative_response(pt_model_5, 1:22, "uni_up") %>% 
   cbind(cumulative_response(pt_model_5, 23:44, "no_uni_up"))%>% 
   cbind(cumulative_response(pt_model_5, 45:66, "uni_down"))%>% 
@@ -366,23 +265,20 @@ pt_model_5_crf_plot <- ggplot() +
   # Ensure that the legend displays the shapes correctly
   scale_shape_manual(values = c(17, 25))
 pt_model_5_crf_plot
-ggsave("03_outputs/figures/20231211_pt_figure_5.png", pt_model_5_crf_plot, width = 10, height = 6)
+ggsave("03_outputs/figures/20231212_pt_figure_5.png", pt_model_5_crf_plot, width = 10, height = 6)
+rm(model_5_df)
 
 
 # Model 6: Coordinated Market Power asymmetry
+model_6_df  <- readRDS("01_data/02_processed/model_6_df.rds")
 pt_model_6_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("diff_oil_coord_pos_", 1:22), collapse=" + ")) %>%
-  paste(paste(paste0("diff_oil_no_coord_pos_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_oil_coord_neg_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_oil_no_coord_neg_", 1:22), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("m6_diff_oil_coord_pos_", 1:22), collapse=" + ")) %>%
+  paste(paste(paste0("m6_diff_oil_no_coord_pos_", 1:22), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("m6_diff_oil_coord_neg_", 1:22), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("m6_diff_oil_no_coord_neg_", 1:22), collapse=" + "), sep = " + ") %>%
   paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_6 <- felm(pt_model_6_formula, data = analysis_data_big  %>%
-                     select(starts_with("diff_oil_coord_pos_"), 
-                            starts_with("diff_oil_no_coord_pos_"),
-                            starts_with("diff_oil_coord_neg_"), 
-                            starts_with("diff_oil_no_coord_neg_"),
-                            starts_with("diff_e5_"), lag_ect, stid, date))
+pt_model_6 <- felm(pt_model_6_formula, data = model_6_df)
 pt_model_6_crf <- cumulative_response(pt_model_6, 1:22, "coord_up") %>% 
   cbind(cumulative_response(pt_model_6, 23:44, "no_coord_up"))%>% 
   cbind(cumulative_response(pt_model_6, 45:66, "coord_down"))%>% 
@@ -426,4 +322,5 @@ pt_model_6_crf_plot <- ggplot() +
   # Ensure that the legend displays the shapes correctly
   scale_shape_manual(values = c(17, 25))
 pt_model_6_crf_plot
-ggsave("03_outputs/figures/20231211_pt_figure_6.png", pt_model_6_crf_plot, width = 10, height = 6)
+ggsave("03_outputs/figures/20231212_pt_figure_6.png", pt_model_6_crf_plot, width = 10, height = 6)
+rm(model_6_df)
