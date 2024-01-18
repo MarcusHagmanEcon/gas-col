@@ -94,9 +94,9 @@ rm(mkt_pwr_est_df)
 ## Model 1: Simple price transmission
 model_1_df  <- readRDS("01_data/02_processed/model_1_df.rds")
 pt_model_1_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("diff_oil_", 1:22), collapse=" + ")) %>%
+  paste(paste(paste0("m1_diff_oil_", 1:22), collapse=" + ")) %>%
   paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
-  paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
+  paste0(" + lag_e5 + lag_oil | stid | 0 | date + stid") %>% formula()
 pt_model_1 <- felm(pt_model_1_formula, data = model_1_df )
 summary(pt_model_1)
 pt_model_1_crf <- cumulative_response(pt_model_1, 1:22, "all")
