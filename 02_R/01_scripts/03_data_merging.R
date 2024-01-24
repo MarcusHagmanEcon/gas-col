@@ -4,7 +4,10 @@
 # Author: Marcus Hagman
 # Date: 2023-10-18
 # 
-# Purpose: This script merges the two cleaned dataframes so analysis can be conducted.
+# Purpose: This script produces dataframes that are ready for analysis without
+#          further modifications. It uses 4 dataframes to do so, listed below.
+#          For reasons of computational efficiency, the output dataframe for each 
+#          level of analysis is separate.
 #
 # Input: - 01_data/02_processed/cleaned_gas_stations.rds
 #        - 01_data/02_processed/cleaned_gas_prices.rds
@@ -69,18 +72,26 @@ combined_df_big <- combined_df_big %>%
   })
 
 combined_df_big <- combined_df_big %>%
-  mutate(lag_ect = ifelse(stid == lag(stid, n = 1), lag(ect), NA))
+  mutate(lag_ect = ifelse(stid == lag(stid, n = 1), lag(ect), NA),
+         lag_e5 = ifelse(stid == lag(stid, n = 1), lag(e5), NA),
+         lag_oil = ifelse(stid == lag(stid, n = 1), lag(oil), NA))
 
 #combined_df_mondays <- combined_df_big %>% filter(weekday == "Monday")
 
-for (i in 1:22) {
+for (i in 1:30) {
   combined_df_big <- combined_df_big %>%
     mutate(!!paste0("diff_e5_", i) := ifelse(stid == lag(stid, n = i), 
                                              lag(e5, n = i - 1) - lag(e5, n = i), 
                                              NA),
+           !!paste0("diff_e5_pos_", i) := max(!!paste0("diff_e5_", i),0),
+           !!paste0("diff_e5_neg_", i) := ifelse(stid == lag(stid, n = i), 
+                                             min(lag(e5, n = i - 1) - lag(e5, n = i), 0), 
+                                             NA),
            !!paste0("m1_diff_oil_", i) := ifelse(stid == lag(stid, n = i), 
                                               lag(oil, n = i - 1) - lag(oil, n = i), 
                                               NA))
+  combined_df_big[[paste0("diff_e5_pos_", i)]] <- pmax(combined_df_big[[paste0("diff_e5_", i)]],0)
+  combined_df_big[[paste0("diff_e5_neg_", i)]] <- pmin(combined_df_big[[paste0("diff_e5_", i)]],0)  
   combined_df_big[[paste0("m2_diff_oil_pos_", i)]] <- pmax(combined_df_big[[paste0("m1_diff_oil_", i)]],0)
   combined_df_big[[paste0("m2_diff_oil_neg_", i)]] <- pmin(combined_df_big[[paste0("m1_diff_oil_", i)]],0)
   combined_df_big[[paste0("m3_diff_oil_uni_", i)]] <- 
@@ -129,7 +140,9 @@ model_1_df <- combined_df_big %>%
          lag_ect,
          stid,
          brand,
-         date)
+         date,
+         lag_e5,
+         lag_oil)
 saveRDS(model_1_df, file = "01_data/02_processed/model_1_df.rds")
 rm(model_1_df)
 
@@ -139,47 +152,59 @@ model_2_df <- combined_df_big %>%
          lag_ect,
          stid,
          brand,
-         date)
+         date,
+         lag_e5,
+         lag_oil,
+         unilateral_mkt_pwr,
+         coordinated_mkt_pwr)
 saveRDS(model_2_df, file = "01_data/02_processed/model_2_df.rds")
 rm(model_2_df)
-
-model_3_df <- combined_df_big %>%
-  select(starts_with("diff_e5_"),
-         starts_with("m3"),
-         lag_ect,
-         stid,
-         brand,
-         date)
-saveRDS(model_3_df, file = "01_data/02_processed/model_3_df.rds")
-rm(model_3_df)
-
-model_4_df <- combined_df_big %>%
-  select(starts_with("diff_e5_"),
-         starts_with("m4"),
-         lag_ect,
-         stid,
-         brand,
-         date)
-saveRDS(model_4_df, file = "01_data/02_processed/model_4_df.rds")
-rm(model_4_df)
-
-model_5_df <- combined_df_big %>%
-  select(starts_with("diff_e5_"),
-         starts_with("m5"),
-         lag_ect,
-         stid,
-         brand,
-         date)
-saveRDS(model_5_df, file = "01_data/02_processed/model_5_df.rds")
-rm(model_5_df)
-
-model_6_df <- combined_df_big %>%
-  select(starts_with("diff_e5_"),
-         starts_with("m6"),
-         lag_ect,
-         stid,
-         brand,
-         date)
-saveRDS(model_6_df, file = "01_data/02_processed/model_6_df.rds")
-rm(model_6_df)
-
+# 
+# model_3_df <- combined_df_big %>%
+#   select(starts_with("diff_e5_"),
+#          starts_with("m3"),
+#          lag_ect,
+#          stid,
+#          brand,
+#          date,
+#          lag_e5,
+#          lag_oil)
+# saveRDS(model_3_df, file = "01_data/02_processed/model_3_df.rds")
+# rm(model_3_df)
+# 
+# model_4_df <- combined_df_big %>%
+#   select(starts_with("diff_e5_"),
+#          starts_with("m4"),
+#          lag_ect,
+#          stid,
+#          brand,
+#          date,
+#          lag_e5,
+#          lag_oil)
+# saveRDS(model_4_df, file = "01_data/02_processed/model_4_df.rds")
+# rm(model_4_df)
+# 
+# model_5_df <- combined_df_big %>%
+#   select(starts_with("diff_e5_"),
+#          starts_with("m5"),
+#          lag_ect,
+#          stid,
+#          brand,
+#          date,
+#          lag_e5,
+#          lag_oil)
+# saveRDS(model_5_df, file = "01_data/02_processed/model_5_df.rds")
+# rm(model_5_df)
+# 
+# model_6_df <- combined_df_big %>%
+#   select(starts_with("diff_e5_"),
+#          starts_with("m6"),
+#          lag_ect,
+#          stid,
+#          brand,
+#          date,
+#          lag_e5,
+#          lag_oil)
+# saveRDS(model_6_df, file = "01_data/02_processed/model_6_df.rds")
+# rm(model_6_df)
+# 
