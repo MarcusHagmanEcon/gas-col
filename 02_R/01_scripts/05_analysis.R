@@ -94,10 +94,10 @@ rm(mkt_pwr_est_df)
 ## Model 1: Simple price transmission
 model_1_df  <- readRDS("01_data/02_processed/model_1_df.rds")
 pt_model_1_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("m1_diff_oil_", 1:22), collapse=" + ")) %>%
-  paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("m1_diff_oil_", 1:30), collapse=" + ")) %>%
+  paste(paste(paste0("diff_e5_", 2:30), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_e5 + lag_oil | stid | 0 | date + stid") %>% formula()
-pt_model_1 <- felm(pt_model_1_formula, data = model_1_df )
+pt_model_1 <- felm(pt_model_1_formula, data = model_1_df )d
 summary(pt_model_1)
 pt_model_1_crf <- cumulative_response(pt_model_1, 1:22, "all")
 pt_model_1_crf
@@ -115,10 +115,11 @@ rm(model_1_df)
 # Model 2: Allow for asymmetry
 model_2_df  <- readRDS("01_data/02_processed/model_2_df.rds")
 pt_model_2_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("diff_oil_pos_", 1:22), collapse=" + ")) %>%
-  paste(paste(paste0("diff_oil_neg_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
-  paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
+  paste(paste(paste0("m2_diff_oil_pos_", 1:30), collapse=" + ")) %>%
+  paste(paste(paste0("m2_diff_oil_neg_", 1:30), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("diff_e5_pos_", 2:30), collapse=" + "), sep = " + ") %>%
+  paste(paste(paste0("diff_e5_neg_", 2:30), collapse=" + "), sep = " + ") %>%
+  paste0("  + lag_e5 + lag_oil | stid | 0 | date + stid") %>% formula()
 pt_model_2 <- felm(pt_model_2_formula, data = model_2_df)
 pt_model_2_crf <- cumulative_response(pt_model_2, 1:22, "up") %>% 
   cbind(cumulative_response(pt_model_2, 23:44, "down"))
@@ -314,7 +315,6 @@ pt_model_6_crf_plot <- ggplot() +
                                            ymin = no_coord_down_coef - 1.96 * no_coord_down_se, 
                                            ymax = no_coord_down_coef + 1.96 * no_coord_down_se, 
                                            color = "No Coordinated Market Power, Down"), width = 0.1) +
-  
   
   # Labels and theme
   labs(x = "Days After Change in Oil Price", y = "Cumulative Effect on Gasoline price (95% Confidence Interval)", color = "Series") +
