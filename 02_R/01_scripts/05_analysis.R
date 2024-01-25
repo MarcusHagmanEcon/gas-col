@@ -2,11 +2,11 @@
 # Script Name: 05_analysis.R
 # 
 # Author: Marcus Hagman
-# Date: 2023-10-18
+# Date: 2024-01-24
 # 
 # Purpose: This script produces all the outputs, including tables and graphs.
 #
-# Input: - 01_data/02_processed/analysis_data.rds
+# Input: - 01_data/02_processed/mkt_pwr_est_df.rds
 # 
 # Output: Tables and graphs
 #
@@ -28,6 +28,7 @@ library(nlme)
 library(lmtest)
 #library(plyr)
 source("02_R/02_functions/cumulative_response.R")
+source("02_R/02_functions/cumulative_response_plot.R")
 
 
 
@@ -41,7 +42,7 @@ model_phdis <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
                       population_within_5km_sq + population_within_10km_sq + 
                       stations_per_million_pop_10km + 
                       less_than_50m_to_neighbor_phdis|  brand + date  | 0 | brand + date,
-                              data = analysis_data,
+                              data = mkt_pwr_est_df,
                               na.action = na.omit)
 model_drdis <- felm(log_e5 ~ same_brand_as_nearest_station_drdis +
                       stations_within_5km + stations_within_10km + stations_within_15km +
@@ -49,7 +50,7 @@ model_drdis <- felm(log_e5 ~ same_brand_as_nearest_station_drdis +
                       population_within_5km_sq + population_within_10km_sq + 
                       stations_per_million_pop_10km + 
                       less_than_50m_to_neighbor_phdis|  brand + date  | 0 | brand + date,
-                    data = analysis_data,
+                    data = mkt_pwr_est_df,
                     na.action = na.omit)
 model_drdur <- felm(log_e5 ~ same_brand_as_nearest_station_drdur +
                       stations_within_5km + stations_within_10km + stations_within_15km +
@@ -57,7 +58,7 @@ model_drdur <- felm(log_e5 ~ same_brand_as_nearest_station_drdur +
                       population_within_5km_sq + population_within_10km_sq + 
                       stations_per_million_pop_10km + 
                       less_than_50m_to_neighbor_phdis|  brand + date  | 0 | brand + date,
-                    data = analysis_data,
+                    data = mkt_pwr_est_df,
                     na.action = na.omit)
 model_full <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
                       same_brand_as_nearest_station_drdis +
@@ -67,16 +68,17 @@ model_full <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
                      population_within_5km_sq + population_within_10km_sq + 
                      stations_per_million_pop_10km + 
                      less_than_50m_to_neighbor_phdis|  brand + date  | 0 | brand + date,
-                    data = analysis_data,
+                    data = mkt_pwr_est_df,
                     na.action = na.omit)
 model_phdis_coef <- summary(model_phdis)$coef
 model_drdis_coef <- summary(model_drdis)$coef
 model_drdur_coef <- summary(model_drdur)$coef
 model_full_coef <- summary(model_full)$coef
 # Use stargazer with type set to "latex"
-sink("03_outputs/tables/20231207_distancecomp.tex")
+sink("03_outputs/tables/20240125_distancecomp.tex")
 stargazer(model_phdis, model_drdis, model_drdur, model_full, type = "latex",
-          covariate.labels = c("Same Brand as Nearest, Straight Distance", "Same Brand as Nearest, Driving Distance", "Same Brand as Nearest, Driving Duration"),
+          covariate.labels = c("Same Brand as Nearest, Straight Distance", "Same Brand as Nearest, Driving Distance",
+                               "Same Brand as Nearest, Driving Duration"),
           omit = c("stations_within_5km", "stations_within_10km", "stations_within_15km", 
                    "population_within_5km", "population_within_10km",
                      "population_within_5km_sq", "population_within_10km_sq", 
@@ -91,25 +93,16 @@ sink()
 rm(mkt_pwr_est_df)
 
 
-## Model 1: Simple price transmission
+## Model 1: Symmetric price transmission
 model_1_df  <- readRDS("01_data/02_processed/model_1_df.rds")
 pt_model_1_formula <- "diff_e5_1 ~ " %>%
   paste(paste(paste0("m1_diff_oil_", 1:30), collapse=" + ")) %>%
   paste(paste(paste0("diff_e5_", 2:30), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_e5 + lag_oil | stid | 0 | date + stid") %>% formula()
-pt_model_1 <- felm(pt_model_1_formula, data = model_1_df )d
-summary(pt_model_1)
-pt_model_1_crf <- cumulative_response(pt_model_1, 1:22, "all")
-pt_model_1_crf
-pt_model_1_crf$lag <- seq_len(nrow(pt_model_1_crf)) - 1
-pt_model_1_crf_plot <- ggplot(pt_model_1_crf, aes(x = lag, y = all_coef)) +
-  geom_point() +  # Add points
-  geom_line() +  # Add lines connecting the points
-  geom_errorbar(aes(ymin = all_coef - 1.96 * all_se, ymax = all_coef + 1.96 * all_se), width = 0.1) +
-  labs(x = "Days After Change in Oil Price", y = "Cumulative Effect on Gasoline price (95% Confidence Interval)") +
-  theme_minimal()
-pt_model_1_crf_plot
-ggsave("03_outputs/figures/20231211_pt_figure_1.png", pt_model_1_crf_plot, width = 10, height = 6)
+pt_model_1 <- felm(pt_model_1_formula, data = model_1_df )
+crf <- cumulative_response_sym(pt_model_1)
+spt_plot_1 <- cumulative_response_plot(list(crf), c("Response to Change in Oil Price"))
+ggsave("03_outputs/figures/20240124_spt_plot_1.png", spt_plot_1, width = 10, height = 6)
 rm(model_1_df)
 
 # Model 2: Allow for asymmetry
@@ -121,206 +114,41 @@ pt_model_2_formula <- "diff_e5_1 ~ " %>%
   paste(paste(paste0("diff_e5_neg_", 2:30), collapse=" + "), sep = " + ") %>%
   paste0("  + lag_e5 + lag_oil | stid | 0 | date + stid") %>% formula()
 pt_model_2 <- felm(pt_model_2_formula, data = model_2_df)
-pt_model_2_crf <- cumulative_response(pt_model_2, 1:22, "up") %>% 
-  cbind(cumulative_response(pt_model_2, 23:44, "down"))
-pt_model_2_crf$lag <- seq_len(nrow(pt_model_2_crf)) - 1
-# Define a small horizontal offset
-offset <- 0.1
-pt_model_2_crf_plot <- ggplot() +
-  # Plotting the first series (up_coef with up_se) with an offset, using triangles for "up"
-  geom_point(data = pt_model_2_crf, aes(x = lag - offset, y = up_coef, color = "Oil Price Increase")) +
-  geom_line(data = pt_model_2_crf, aes(x = lag - offset, y = up_coef, color = "Oil Price Increase")) +
-  geom_errorbar(data = pt_model_2_crf, aes(x = lag - offset, ymin = up_coef - 1.96 * up_se, ymax = up_coef + 1.96 * up_se, color = "Oil Price Increase"), width = 0.1) +
-  
-  # Plotting the second series (down_coef with down_se), using upside-down triangles for "down"
-  geom_point(data = pt_model_2_crf, aes(x = lag, y = down_coef, color = "Oil Price Decrease")) +
-  geom_line(data = pt_model_2_crf, aes(x = lag, y = down_coef, color = "Oil Price Decrease")) +
-  geom_errorbar(data = pt_model_2_crf, aes(x = lag, ymin = down_coef - 1.96 * down_se, ymax = down_coef + 1.96 * down_se, color = "Oil Price Decrease"), width = 0.1) +
-  
-  # Labels and theme
-  labs(x = "Days After Change in Oil Price", y = "Cumulative Effect on Gasoline price (95% Confidence Interval)", color = "Series") +
-  theme_minimal() +
-  # Ensure that the legend displays the shapes correctly
-  scale_shape_manual(values = c(17, 25))
-pt_model_2_crf_plot
-ggsave("03_outputs/figures/20231211_pt_figure_2.png", pt_model_2_crf_plot, width = 10, height = 6)
-rm(model_2_df)
+crf_pos <- cumulative_response_asym(pt_model_2, "pos")
+crf_neg <- cumulative_response_asym(pt_model_2, "neg")
+apt_plot_1 <- cumulative_response_plot(list(crf_pos, crf_neg), c("Response to Increase in Oil Price",
+                                                   "Response to Decrease in Oil Price"))
+ggsave("03_outputs/figures/20240124_apt_plot_1.png", apt_plot_1, width = 10, height = 6)
 
-# Model 3: Unilateral Market Power
-model_3_df  <- readRDS("01_data/02_processed/model_3_df.rds")
-pt_model_3_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("diff_oil_uni_", 1:22), collapse=" + ")) %>%
-  paste(paste(paste0("diff_oil_no_uni_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
-  paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_3 <- felm(pt_model_3_formula, data = model_3_df)
-pt_model_3_crf <- cumulative_response(pt_model_3, 1:22, "up") %>% 
-  cbind(cumulative_response(pt_model_3, 23:44, "down"))
-pt_model_3_crf$lag <- seq_len(nrow(pt_model_3_crf)) - 1
-# Define a small horizontal offset
-offset <- 0.1
-pt_model_3_crf_plot <- ggplot() +
-  # Plotting the first series (up_coef with up_se) with an offset, using triangles for "up"
-  geom_point(data = pt_model_3_crf, aes(x = lag - offset, y = up_coef, color = "Unilateral Market Power")) +
-  geom_line(data = pt_model_3_crf, aes(x = lag - offset, y = up_coef, color = "Unilateral Market Power")) +
-  geom_errorbar(data = pt_model_3_crf, aes(x = lag - offset, ymin = up_coef - 1.96 * up_se, ymax = up_coef + 1.96 * up_se, color = "Unilateral Market Power"), width = 0.1) +
-  
-  # Plotting the second series (down_coef with down_se), using upside-down triangles for "down"
-  geom_point(data = pt_model_3_crf, aes(x = lag, y = down_coef, color = "No Unilateral Market Power")) +
-  geom_line(data = pt_model_3_crf, aes(x = lag, y = down_coef, color = "No Unilateral Market Power")) +
-  geom_errorbar(data = pt_model_3_crf, aes(x = lag, ymin = down_coef - 1.96 * down_se, ymax = down_coef + 1.96 * down_se, color = "No Unilateral Market Power"), width = 0.1) +
-  
-  # Labels and theme
-  labs(x = "Days After Change in Oil Price", y = "Cumulative Effect on Gasoline price (95% Confidence Interval)", color = "Series") +
-  theme_minimal() +
-  # Ensure that the legend displays the shapes correctly
-  scale_shape_manual(values = c(17, 25))
-pt_model_3_crf_plot
-ggsave("03_outputs/figures/20231211_pt_figure_3.png", pt_model_3_crf_plot, width = 10, height = 6)
-rm(model_3_df)
+pt_model_2_no_uni <- felm(pt_model_2_formula, data = model_2_df %>% filter(!unilateral_mkt_pwr>0))
+crf_pos_no_uni <- cumulative_response_asym(pt_model_2_no_uni, "pos")
+crf_neg_no_uni <- cumulative_response_asym(pt_model_2_no_uni, "neg")
 
-# Model 4: Coordinated Market Power
-model_4_df  <- readRDS("01_data/02_processed/model_4_df.rds")
-pt_model_4_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("diff_oil_coord_", 1:22), collapse=" + ")) %>%
-  paste(paste(paste0("diff_oil_no_coord_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
-  paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_4 <- felm(pt_model_4_formula, data = model_4_df)
-pt_model_4_crf <- cumulative_response(pt_model_4, 1:22, "up") %>% 
-  cbind(cumulative_response(pt_model_4, 23:44, "down"))
-pt_model_4_crf$lag <- seq_len(nrow(pt_model_3_crf)) - 1
-# Define a small horizontal offset
-offset <- 0.1
-pt_model_4_crf_plot <- ggplot() +
-  # Plotting the first series (up_coef with up_se) with an offset, using triangles for "up"
-  geom_point(data = pt_model_4_crf, aes(x = lag - offset, y = up_coef, color = "Coordinated Market Power")) +
-  geom_line(data = pt_model_4_crf, aes(x = lag - offset, y = up_coef, color = "Coordinated Market Power")) +
-  geom_errorbar(data = pt_model_4_crf, aes(x = lag - offset, ymin = up_coef - 1.96 * up_se, ymax = up_coef + 1.96 * up_se, color = "Coordinated Market Power"), width = 0.1) +
-  
-  # Plotting the second series (down_coef with down_se), using upside-down triangles for "down"
-  geom_point(data = pt_model_4_crf, aes(x = lag, y = down_coef, color = "No Coordinated Market Power")) +
-  geom_line(data = pt_model_4_crf, aes(x = lag, y = down_coef, color = "No Coordinated Market Power")) +
-  geom_errorbar(data = pt_model_4_crf, aes(x = lag, ymin = down_coef - 1.96 * down_se, ymax = down_coef + 1.96 * down_se, color = "No Coordinated Market Power"), width = 0.1) +
-  
-  # Labels and theme
-  labs(x = "Days After Change in Oil Price", y = "Cumulative Effect on Gasoline price (95% Confidence Interval)", color = "Series") +
-  theme_minimal() +
-  # Ensure that the legend displays the shapes correctly
-  scale_shape_manual(values = c(17, 25))
-pt_model_4_crf_plot
-ggsave("03_outputs/figures/20231211_pt_figure_4.png", pt_model_4_crf_plot, width = 10, height = 6)
-rm(model_4_df)
+pt_model_2_uni <- felm(pt_model_2_formula, data = model_2_df %>% filter(unilateral_mkt_pwr>0))
+crf_pos_uni <- cumulative_response_asym(pt_model_2_uni, "pos")
+crf_neg_uni <- cumulative_response_asym(pt_model_2_uni, "neg")
+
+apt_plot_2 <- cumulative_response_plot(list(crf_pos_no_uni, crf_neg_no_uni, crf_pos_uni, crf_neg_uni), 
+                         c("Response to Increase in Oil Price, \nno Unilateral Market Power",
+                           "Response to Decrease in Oil Price, \nno Unilateral Market Power",
+                           "Response to Increase in Oil Price, \nUnilateral Market Power",
+                           "Response to Decrease in Oil Price, \nUnilateral Market Power"))
+ggsave("03_outputs/figures/20240124_apt_plot_2.png", apt_plot_2, width = 10, height = 6)
 
 
-# Model 5: Unilateral Market Power asymmetry
-model_5_df  <- readRDS("01_data/02_processed/model_5_df.rds")
-pt_model_5_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("m5_diff_oil_uni_pos_", 1:22), collapse=" + ")) %>%
-  paste(paste(paste0("m5_diff_oil_no_uni_pos_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("m5_diff_oil_uni_neg_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("m5_diff_oil_no_uni_neg_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
-  paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_5 <- felm(pt_model_5_formula, data = model_5_df)
-pt_model_5_crf <- cumulative_response(pt_model_5, 1:22, "uni_up") %>% 
-  cbind(cumulative_response(pt_model_5, 23:44, "no_uni_up"))%>% 
-  cbind(cumulative_response(pt_model_5, 45:66, "uni_down"))%>% 
-  cbind(cumulative_response(pt_model_5, 67:88, "no_uni_down"))
-pt_model_5_crf$lag <- seq_len(nrow(pt_model_5_crf)) - 1
-# Define a small horizontal offset
-offset <- 0.1
-pt_model_5_crf_plot <- ggplot() +
-  geom_point(data = pt_model_5_crf, aes(x = lag - offset, y = uni_up_coef, color = "Coordinated Market Power, Up")) +
-  geom_line(data = pt_model_5_crf, aes(x = lag - offset, y = uni_up_coef, color = "Coordinated Market Power, Up")) +
-  geom_errorbar(data = pt_model_5_crf, aes(x = lag - offset, 
-                                           ymin = uni_up_coef - 1.96 * uni_up_se, 
-                                           ymax = uni_up_coef + 1.96 * uni_up_se, 
-                                           color = "Coordinated Market Power, Up"), width = 0.1) +
-  
-  geom_point(data = pt_model_5_crf, aes(x = lag - offset, y = no_uni_up_coef, color = "Not Coordinated Market Power, Up")) +
-  geom_line(data = pt_model_5_crf, aes(x = lag - offset, y = no_uni_up_coef, color = "Not Coordinated Market Power, Up")) +
-  geom_errorbar(data = pt_model_5_crf, aes(x = lag - offset, 
-                                           ymin = no_uni_up_coef - 1.96 * no_uni_up_se, 
-                                           ymax = no_uni_up_coef + 1.96 * no_uni_up_se, 
-                                           color = "Not Coordinated Market Power, Up"), width = 0.1) +
-  
-  geom_point(data = pt_model_5_crf, aes(x = lag - offset, y = uni_down_coef, color = "Coordinated Market Power, Down")) +
-  geom_line(data = pt_model_5_crf, aes(x = lag - offset, y = uni_down_coef, color = "Coordinated Market Power, Down")) +
-  geom_errorbar(data = pt_model_5_crf, aes(x = lag - offset, 
-                                           ymin = uni_down_coef - 1.96 * uni_down_se, 
-                                           ymax = uni_down_coef + 1.96 * uni_down_se, 
-                                           color = "Coordinated Market Power, Down"), width = 0.1) +
-  
-  geom_point(data = pt_model_5_crf, aes(x = lag - offset, y = no_uni_down_coef, color = "No Coordinated Market Power, Down")) +
-  geom_line(data = pt_model_5_crf, aes(x = lag - offset, y = no_uni_down_coef, color = "No Coordinated Market Power, Down")) +
-  geom_errorbar(data = pt_model_5_crf, aes(x = lag - offset, 
-                                           ymin = no_uni_down_coef - 1.96 * no_uni_down_se, 
-                                           ymax = no_uni_down_coef + 1.96 * no_uni_down_se, 
-                                           color = "No Coordinated Market Power, Down"), width = 0.1) +
-  
-  
-  # Labels and theme
-  labs(x = "Days After Change in Oil Price", y = "Cumulative Effect on Gasoline price (95% Confidence Interval)", color = "Series") +
-  theme_minimal() +
-  # Ensure that the legend displays the shapes correctly
-  scale_shape_manual(values = c(17, 25))
-pt_model_5_crf_plot
-ggsave("03_outputs/figures/20231212_pt_figure_5.png", pt_model_5_crf_plot, width = 10, height = 6)
-rm(model_5_df)
+pt_model_2_no_coord <- felm(pt_model_2_formula, data = model_2_df %>% filter(!coordinated_mkt_pwr>0))
+crf_pos_no_coord <- cumulative_response_asym(pt_model_2_no_coord, "pos")
+crf_neg_no_coord <- cumulative_response_asym(pt_model_2_no_coord, "neg")
+
+pt_model_2_coord <- felm(pt_model_2_formula, data = model_2_df %>% filter(coordinated_mkt_pwr>0))
+crf_pos_coord <- cumulative_response_asym(pt_model_2_coord, "pos")
+crf_neg_coord <- cumulative_response_asym(pt_model_2_coord, "neg")
+
+apt_plot_3 <- cumulative_response_plot(list(crf_pos_no_coord, crf_neg_no_coord, crf_pos_coord, crf_neg_coord), 
+                         c("Response to Increase in Oil Price, \nNo Unilateral Market Power",
+                           "Response to Decrease in Oil Price, \nNo Unilateral Market Power",
+                           "Response to Increase in Oil Price, \nUnilateral Market Power",
+                           "Response to Decrease in Oil Price, \nUnilateral Market Power"))
+ggsave("03_outputs/figures/20240124_apt_plot_3.png", apt_plot_3, width = 10, height = 6)
 
 
-# Model 6: Coordinated Market Power asymmetry
-model_6_df  <- readRDS("01_data/02_processed/model_6_df.rds")
-pt_model_6_formula <- "diff_e5_1 ~ " %>%
-  paste(paste(paste0("m6_diff_oil_coord_pos_", 1:22), collapse=" + ")) %>%
-  paste(paste(paste0("m6_diff_oil_no_coord_pos_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("m6_diff_oil_coord_neg_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("m6_diff_oil_no_coord_neg_", 1:22), collapse=" + "), sep = " + ") %>%
-  paste(paste(paste0("diff_e5_", 2:22), collapse=" + "), sep = " + ") %>%
-  paste0(" + lag_ect | stid | 0 | date + stid") %>% formula()
-pt_model_6 <- felm(pt_model_6_formula, data = model_6_df)
-pt_model_6_crf <- cumulative_response(pt_model_6, 1:22, "coord_up") %>% 
-  cbind(cumulative_response(pt_model_6, 23:44, "no_coord_up"))%>% 
-  cbind(cumulative_response(pt_model_6, 45:66, "coord_down"))%>% 
-  cbind(cumulative_response(pt_model_6, 67:88, "no_coord_down"))
-pt_model_6_crf$lag <- seq_len(nrow(pt_model_6_crf)) - 1
-# Define a small horizontal offset
-offset <- 0.1
-pt_model_6_crf_plot <- ggplot() +
-  geom_point(data = pt_model_6_crf, aes(x = lag - offset, y = coord_up_coef, color = "Coordinated Market Power, Up")) +
-  geom_line(data = pt_model_6_crf, aes(x = lag - offset, y = coord_up_coef, color = "Coordinated Market Power, Up")) +
-  geom_errorbar(data = pt_model_6_crf, aes(x = lag - offset, 
-                                           ymin = coord_up_coef - 1.96 * coord_up_se, 
-                                           ymax = coord_up_coef + 1.96 * coord_up_se, 
-                                           color = "Coordinated Market Power, Up"), width = 0.1) +
-  
-  geom_point(data = pt_model_6_crf, aes(x = lag - offset, y = no_coord_up_coef, color = "Not Coordinated Market Power, Up")) +
-  geom_line(data = pt_model_6_crf, aes(x = lag - offset, y = no_coord_up_coef, color = "Not Coordinated Market Power, Up")) +
-  geom_errorbar(data = pt_model_6_crf, aes(x = lag - offset, 
-                                           ymin = no_coord_up_coef - 1.96 * no_coord_up_se, 
-                                           ymax = no_coord_up_coef + 1.96 * no_coord_up_se, 
-                                           color = "Not Coordinated Market Power, Up"), width = 0.1) +
-  
-  geom_point(data = pt_model_6_crf, aes(x = lag - offset, y = coord_down_coef, color = "Coordinated Market Power, Down")) +
-  geom_line(data = pt_model_6_crf, aes(x = lag - offset, y = coord_down_coef, color = "Coordinated Market Power, Down")) +
-  geom_errorbar(data = pt_model_6_crf, aes(x = lag - offset, 
-                                           ymin = coord_down_coef - 1.96 * coord_down_se, 
-                                           ymax = coord_down_coef + 1.96 * coord_down_se, 
-                                           color = "Coordinated Market Power, Down"), width = 0.1) +
-  
-  geom_point(data = pt_model_6_crf, aes(x = lag - offset, y = no_coord_down_coef, color = "No Coordinated Market Power, Down")) +
-  geom_line(data = pt_model_6_crf, aes(x = lag - offset, y = no_coord_down_coef, color = "No Coordinated Market Power, Down")) +
-  geom_errorbar(data = pt_model_6_crf, aes(x = lag - offset, 
-                                           ymin = no_coord_down_coef - 1.96 * no_coord_down_se, 
-                                           ymax = no_coord_down_coef + 1.96 * no_coord_down_se, 
-                                           color = "No Coordinated Market Power, Down"), width = 0.1) +
-  
-  # Labels and theme
-  labs(x = "Days After Change in Oil Price", y = "Cumulative Effect on Gasoline price (95% Confidence Interval)", color = "Series") +
-  theme_minimal() +
-  # Ensure that the legend displays the shapes correctly
-  scale_shape_manual(values = c(17, 25))
-pt_model_6_crf_plot
-ggsave("03_outputs/figures/20231212_pt_figure_6.png", pt_model_6_crf_plot, width = 10, height = 6)
-rm(model_6_df)
