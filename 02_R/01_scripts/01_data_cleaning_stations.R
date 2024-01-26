@@ -47,7 +47,7 @@ gas_stations <- gas_stations %>% mutate(lat_lng_swapped = lat > 0 & lat < 20 & l
 gas_stations <- gas_stations %>% filter(lng < 16)
 
 # There is reason to believe that the coordinates are wrong for the 4 where
-#at least one station was entered as an integer
+#at least one coordinate was entered as an integer
 gas_stations <- gas_stations %>% filter(lat != floor(lat) & lng != floor(lng))
 
 
