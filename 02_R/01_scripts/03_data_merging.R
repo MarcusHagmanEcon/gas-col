@@ -61,7 +61,7 @@ combined_df <- combined_df %>%
 
 combined_df <- combined_df %>% mutate(weekday = weekdays(date))
 
-combined_df_big <- combined_df %>% filter(brand %in% big_brands)
+combined_df_big <- combined_df %>% filter(brand %in% sps_brands)
 
 combined_df_big <- combined_df_big %>%
   group_by(stid) %>%
