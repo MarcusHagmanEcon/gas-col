@@ -2,7 +2,7 @@
 # Script Name: 05_analysis.R
 # 
 # Author: Marcus Hagman
-# Date: 2023-12-05
+# Date: 2024-02-06
 # 
 # Purpose: This script runs regression on a per-brand level
 #
@@ -74,7 +74,7 @@ plot1 <- ggplot(brand_df, aes(x = coef, y = brand)) +
        x = "Coefficient Estimate",
        y = "Brand")
 
-ggsave("03_outputs/figures/20231206_brand_coef.png", plot1, width = 10, height = 6)
+ggsave("03_outputs/figures/20240206_brand_coef.png", plot1, width = 10, height = 6)
 
 sps_list <- brand_df %>% arrange(-n) %>% filter(t_stat>2) %>% select(brand) %>%
   mutate(brand = as.character(brand)) %>% pull
@@ -138,19 +138,20 @@ long_brand_df$upper_bound = long_brand_df$coef + 1.96 * long_brand_df$se
 long_brand_df <- long_brand_df %>% arrange(n)
 
 # Plotting
+
+long_brand_df$brand_for_plot <- paste("Brand b:", long_brand_df$brand)
 plot2 <- ggplot(long_brand_df, aes(x = coef, y = brand_type)) +
   geom_point() +
   geom_errorbarh(aes(xmin = lower_bound, xmax = upper_bound), height = 0.2) +
   geom_vline(xintercept = 0, linetype = "dotted", color = "red", size = 1) +
-  facet_wrap(~ brand, scales = "free_y", nrow = 3) +  # Adding facet_wrap
+  facet_wrap(~ brand_for_plot, scales = "free_y", nrow = 3) +  # Facet wrap with modified brand names
   theme_minimal() +
-  labs(title = "95% CI of Coefficient Estimates for Each Brand",
+  labs(title = "95% CI of Coefficient Estimates for Each Brand Pair",
        x = "Coefficient Estimate",
-       y = "Brand")
+       y = "Brand n:")  # Modified y-axis label
 plot2
 
-ggsave("03_outputs/figures/20231206_brand_pair_coef.png", plot2, width = 10, height = 6)
-
+ggsave("03_outputs/figures/20240206_brand_pair_coef.png", plot2, width = 10, height = 6)
 
 
 saveRDS(brand_df, file = "01_data/02_processed/brand_df.rds")
