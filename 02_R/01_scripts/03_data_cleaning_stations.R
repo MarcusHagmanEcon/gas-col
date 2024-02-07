@@ -4,7 +4,8 @@
 # Author: Marcus Hagman
 # Date: 2023-10-18
 # 
-# Purpose: This script takes in the raw list of gas stations and calculates 
+# Purpose: This script takes in the raw list of gas stations
+          # and the cleaned population file, then calculates 
           # values of variables that will be needed in the analysis.
           # For example, it calculates variables that will determine the
           # competitiveness of each station

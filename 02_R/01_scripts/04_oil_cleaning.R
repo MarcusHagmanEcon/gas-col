@@ -4,7 +4,7 @@
 # Author: Marcus Hagman
 # Date: 2023-10-18
 # 
-# Purpose: Cleans raw europe brent spot prices
+# Purpose: Cleans raw europe brent spot prices and converts to EUR
 #
 # Input: - 01_data/01_raw/europe_brent_spot.csv
 # 
