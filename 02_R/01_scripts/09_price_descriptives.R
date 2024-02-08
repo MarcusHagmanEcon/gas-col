@@ -29,7 +29,7 @@ gas_prices  <- readRDS("01_data/02_processed/cleaned_gas_prices.rds")
 oil <- readRDS("01_data/02_processed/cleaned_oil_prices.rds")
 
 station_prices <- gas_prices %>% left_join(oil, by = c("date" = "date_day")) %>%
-  select(stid, date, brent, e5) %>% mutate( e5 = e5 /1000)
+  select(stid, date, brent, e5) %>% mutate( e5 = e5)
 
 rm(gas_prices)
 rm(oil)

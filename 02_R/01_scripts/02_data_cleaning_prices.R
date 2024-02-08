@@ -39,6 +39,11 @@ gas_prices <- gas_prices %>% mutate(e5 = ifelse(e5 > 10 & e5 < 9999, e5, NA),
                                     e10 = ifelse(e10 > 10 & e10 < 9999, e10, NA),
                                     diesel = ifelse(diesel > 10 & diesel < 9999, diesel, NA))
 
+# Change unit of prices to EUR per liter
+gas_price <- gas_prices %>% mutate(e5 = e5 / 1000,
+                                   e10 = e10 / 1000,
+                                   diesel = diesel / 1000)
+
 # Add observations for start and end of day
 source("02_R/02_functions/add_obs_start_end.R")
 rows_to_add <- add_obs_start_end(gas_prices)

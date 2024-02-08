@@ -47,8 +47,7 @@ big_brands <- brand_df %>% mutate(brand = as.character(brand)) %>% select(brand)
 sps_brands <- brand_df %>% filter(t_stat > 2) %>% mutate(brand = as.character(brand)) %>% select(brand) %>%
   pull()
 
-combined_df <- combined_df %>% rename(oil = brent) %>%
-  mutate(e5 = e5/100)
+combined_df <- combined_df %>% rename(oil = brent)
 
 combined_df <- combined_df %>% 
   mutate(unilateral_mkt_pwr = ifelse((brand %in% sps_brands) & 
