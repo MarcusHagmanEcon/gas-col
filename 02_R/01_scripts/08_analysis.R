@@ -30,7 +30,7 @@ library(lmtest)
 source("02_R/02_functions/cumulative_response.R")
 source("02_R/02_functions/cumulative_response_plot.R")
 
-
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 
 # Test hypothesis of strategic pricing
 
@@ -75,9 +75,9 @@ model_drdis_coef <- summary(model_drdis)$coef
 model_drdur_coef <- summary(model_drdur)$coef
 model_full_coef <- summary(model_full)$coef
 # Use stargazer with type set to "latex"
-sink("03_outputs/tables/20240206_distancecomp.tex")
+sink(paste0("03_outputs/tables/", timestamp, "_distance_measure_comp.tex"))
 stargazer(model_phdis, model_drdis, model_drdur, model_full, type = "latex",
-          covariate.labels = c("Same Brand as Nearest, Straight Distance", "Same Brand as Nearest, Driving Distance",
+          covariate.labels = c("Same Brand as Nearest, Linear Distance", "Same Brand as Nearest, Driving Distance",
                                "Same Brand as Nearest, Driving Duration"),
           omit = c("stations_within_5km", "stations_within_10km", "stations_within_15km", 
                    "population_within_5km", "population_within_10km",

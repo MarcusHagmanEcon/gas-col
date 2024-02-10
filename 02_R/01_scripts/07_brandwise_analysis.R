@@ -23,6 +23,11 @@ setwd("C:/Users/marcu/Documents/gas-col")
 
 library(tidyverse)
 library(lfe)
+library(stargazer)
+
+source("02_R/02_functions/transform_strings.R")
+
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 
 # Load data
 analysis_data <- readRDS("01_data/02_processed/analysis_data.rds")
@@ -31,29 +36,47 @@ gas_stations <- readRDS("01_data/02_processed/cleaned_gas_stations.rds")
 brand_df <- gas_stations %>% filter(!is.na(brand)) %>% group_by(brand) %>% 
   summarise(n = n()) %>% arrange(-n) %>%  slice(1:5) %>% 
   mutate(coef = NA, se = NA, t_stat = NA, p_val = NA)
+models_list <- list()
 for (b in brand_df$brand){
   print(which(brand_df$brand == b))
   print(b)
   reg_data <- analysis_data %>% filter(brand == b)
   
-  model_brand <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
-                        stations_within_5km + stations_within_10km + stations_within_15km +
-                        population_within_5km + population_within_10km + 
-                        population_within_5km_sq + population_within_10km_sq + 
-                        stations_per_million_pop_10km + 
-                        less_than_50m_to_neighbor_phdis| date | 0 | date + stid ,
-                      data = reg_data,
-                      na.action = na.omit)
+  model_name <- paste0("model_brand_", b)
+  model <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
+                stations_within_5km + stations_within_10km + stations_within_15km +
+                population_within_5km + population_within_10km + 
+                population_within_5km_sq + population_within_10km_sq + 
+                stations_per_million_pop_10km + 
+                less_than_50m_to_neighbor_phdis | date | 0 | date + stid,
+              data = reg_data,
+              na.action = na.omit)
   
-  model_brand_coef <- summary(model_brand)$coef
+  models_list[[model_name]] <- model
   
+  model_brand_coef <- summary(model)$coef
+
   brand_df$coef[which(brand_df$brand == b)] <- model_brand_coef[1,1]
   brand_df$se[which(brand_df$brand == b)] <- model_brand_coef[1,2]
   brand_df$t_stat[which(brand_df$brand == b)] <- model_brand_coef[1,3]
   brand_df$p_val[which(brand_df$brand == b)] <- model_brand_coef[1,4]
-  
+
   print(model_brand_coef)
 }
+
+sink(paste0("03_outputs/tables/", timestamp, "_brand_coef.tex"))
+stargazer(models_list, type = "latex",
+          covariate.labels = c("Same Brand as Nearest, Linear Distance"),
+          omit = c("stations_within_5km", "stations_within_10km", "stations_within_15km", 
+                   "population_within_5km", "population_within_10km",
+                   "population_within_5km_sq", "population_within_10km_sq", 
+                   "stations_per_million_pop_10km", "less_than_50m_to_neighbor_phdis"),
+          omit.stat = "all", # to omit additional statistics like R-squared, F-statistic, etc.
+          single.row = FALSE,
+          title = "", 
+          label = "")
+sink()
+
 
 # Calculate the lower and upper bounds of the 95% CI
 brand_df$lower_bound = brand_df$coef - 1.96 * brand_df$se
