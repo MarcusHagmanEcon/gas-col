@@ -124,6 +124,7 @@ for (i in 1:30) {
 mkt_pwr_est_df <- combined_df %>%
   select(log_e5,
          starts_with("same_brand_as_nearest_station_"), 
+         starts_with("brand_of_nearest_station_"), 
          starts_with("stations_within_"), 
          starts_with("population_within_"),
          stations_per_million_pop_10km, 
@@ -133,7 +134,7 @@ mkt_pwr_est_df <- combined_df %>%
          date)
 saveRDS(mkt_pwr_est_df, file = "01_data/02_processed/mkt_pwr_est_df.rds")
 
-model_1_df <- combined_df_big %>%
+spt_df <- combined_df_big %>%
   select(starts_with("diff_e5_"),
          starts_with("m1"),
          lag_ect,
@@ -142,10 +143,10 @@ model_1_df <- combined_df_big %>%
          date,
          lag_e5,
          lag_oil)
-saveRDS(model_1_df, file = "01_data/02_processed/model_1_df.rds")
-rm(model_1_df)
+saveRDS(spt_df, file = "01_data/02_processed/spt_df.rds")
+rm(spt_df)
 
-model_2_df <- combined_df_big %>%
+apt_df <- combined_df_big %>%
   select(starts_with("diff_e5_"),
          starts_with("m2"),
          lag_ect,
@@ -156,5 +157,6 @@ model_2_df <- combined_df_big %>%
          lag_oil,
          unilateral_mkt_pwr,
          coordinated_mkt_pwr)
-saveRDS(model_2_df, file = "01_data/02_processed/model_2_df.rds")
-rm(model_2_df)
+saveRDS(apt_df, file = "01_data/02_processed/apt_df.rds")
+rm(apt_df)
+
