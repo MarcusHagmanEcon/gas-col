@@ -23,6 +23,8 @@ setwd("C:/Users/marcu/Documents/gas-col")
 library(tidyverse)
 library(lubridate)
 
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+
 # Load data
 gas_prices <- read.csv("01_data/01_raw/gas_prices.csv")
 
