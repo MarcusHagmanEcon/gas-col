@@ -109,3 +109,4 @@ gas_prices_day <- gas_prices_day %>% filter(log_e5 > lower_bound_e5 & log_e5 < u
 gas_prices_day <- gas_prices_day %>% select( -c(lower_bound_e5, upper_bound_e5))
 
 saveRDS(gas_prices_day, file = "01_data/02_processed/cleaned_gas_prices.rds")
+  

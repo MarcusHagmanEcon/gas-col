@@ -93,32 +93,32 @@ for (i in 1:30) {
   combined_df_big[[paste0("diff_e5_neg_", i)]] <- pmin(combined_df_big[[paste0("diff_e5_", i)]],0)  
   combined_df_big[[paste0("m2_diff_oil_pos_", i)]] <- pmax(combined_df_big[[paste0("m1_diff_oil_", i)]],0)
   combined_df_big[[paste0("m2_diff_oil_neg_", i)]] <- pmin(combined_df_big[[paste0("m1_diff_oil_", i)]],0)
-  combined_df_big[[paste0("m3_diff_oil_uni_", i)]] <- 
-    ifelse(combined_df_big$unilateral_mkt_pwr > 0, combined_df_big[[paste0("m1_diff_oil_", i)]], 0)
-  combined_df_big[[paste0("m3_diff_oil_no_uni_", i)]] <- 
-    ifelse(combined_df_big$unilateral_mkt_pwr == 0, combined_df_big[[paste0("m1_diff_oil_", i)]], 0)
-  combined_df_big[[paste0("m4_diff_oil_coord_", i)]] <- 
-    ifelse(combined_df_big$coordinated_mkt_pwr > 0, combined_df_big[[paste0("m1_diff_oil_", i)]], 0)
-  combined_df_big[[paste0("m4_diff_oil_no_coord_", i)]] <- 
-    ifelse(combined_df_big$coordinated_mkt_pwr == 0, combined_df_big[[paste0("m1_diff_oil_", i)]], 0)
-  
-  combined_df_big[[paste0("m5_diff_oil_uni_pos_", i)]] <- 
-    ifelse(combined_df_big$unilateral_mkt_pwr > 0, combined_df_big[[paste0("m2_diff_oil_pos_", i)]], 0)
-  combined_df_big[[paste0("m5_diff_oil_no_uni_pos_", i)]] <- 
-    ifelse(combined_df_big$unilateral_mkt_pwr == 0, combined_df_big[[paste0("m2_diff_oil_pos_", i)]], 0)
-  combined_df_big[[paste0("m6_diff_oil_coord_pos_", i)]] <- 
-    ifelse(combined_df_big$coordinated_mkt_pwr > 0, combined_df_big[[paste0("m2_diff_oil_pos_", i)]], 0)
-  combined_df_big[[paste0("m6_diff_oil_no_coord_pos_", i)]] <- 
-    ifelse(combined_df_big$coordinated_mkt_pwr == 0, combined_df_big[[paste0("m2_diff_oil_pos_", i)]], 0)
-  
-  combined_df_big[[paste0("m5_diff_oil_uni_neg_", i)]] <- 
-    ifelse(combined_df_big$unilateral_mkt_pwr > 0, combined_df_big[[paste0("m2_diff_oil_neg_", i)]], 0)
-  combined_df_big[[paste0("m5_diff_oil_no_uni_neg_", i)]] <- 
-    ifelse(combined_df_big$unilateral_mkt_pwr == 0, combined_df_big[[paste0("m2_diff_oil_neg_", i)]], 0)
-  combined_df_big[[paste0("m6_diff_oil_coord_neg_", i)]] <- 
-    ifelse(combined_df_big$coordinated_mkt_pwr > 0, combined_df_big[[paste0("m2_diff_oil_neg_", i)]], 0)
-  combined_df_big[[paste0("m6_diff_oil_no_coord_neg_", i)]] <- 
-    ifelse(combined_df_big$coordinated_mkt_pwr == 0, combined_df_big[[paste0("m2_diff_oil_neg_", i)]], 0)
+  # combined_df_big[[paste0("m3_diff_oil_uni_", i)]] <- 
+  #   ifelse(combined_df_big$unilateral_mkt_pwr > 0, combined_df_big[[paste0("m1_diff_oil_", i)]], 0)
+  # combined_df_big[[paste0("m3_diff_oil_no_uni_", i)]] <- 
+  #   ifelse(combined_df_big$unilateral_mkt_pwr == 0, combined_df_big[[paste0("m1_diff_oil_", i)]], 0)
+  # combined_df_big[[paste0("m4_diff_oil_coord_", i)]] <- 
+  #   ifelse(combined_df_big$coordinated_mkt_pwr > 0, combined_df_big[[paste0("m1_diff_oil_", i)]], 0)
+  # combined_df_big[[paste0("m4_diff_oil_no_coord_", i)]] <- 
+  #   ifelse(combined_df_big$coordinated_mkt_pwr == 0, combined_df_big[[paste0("m1_diff_oil_", i)]], 0)
+  # 
+  # combined_df_big[[paste0("m5_diff_oil_uni_pos_", i)]] <- 
+  #   ifelse(combined_df_big$unilateral_mkt_pwr > 0, combined_df_big[[paste0("m2_diff_oil_pos_", i)]], 0)
+  # combined_df_big[[paste0("m5_diff_oil_no_uni_pos_", i)]] <- 
+  #   ifelse(combined_df_big$unilateral_mkt_pwr == 0, combined_df_big[[paste0("m2_diff_oil_pos_", i)]], 0)
+  # combined_df_big[[paste0("m6_diff_oil_coord_pos_", i)]] <- 
+  #   ifelse(combined_df_big$coordinated_mkt_pwr > 0, combined_df_big[[paste0("m2_diff_oil_pos_", i)]], 0)
+  # combined_df_big[[paste0("m6_diff_oil_no_coord_pos_", i)]] <- 
+  #   ifelse(combined_df_big$coordinated_mkt_pwr == 0, combined_df_big[[paste0("m2_diff_oil_pos_", i)]], 0)
+  # 
+  # combined_df_big[[paste0("m5_diff_oil_uni_neg_", i)]] <- 
+  #   ifelse(combined_df_big$unilateral_mkt_pwr > 0, combined_df_big[[paste0("m2_diff_oil_neg_", i)]], 0)
+  # combined_df_big[[paste0("m5_diff_oil_no_uni_neg_", i)]] <- 
+  #   ifelse(combined_df_big$unilateral_mkt_pwr == 0, combined_df_big[[paste0("m2_diff_oil_neg_", i)]], 0)
+  # combined_df_big[[paste0("m6_diff_oil_coord_neg_", i)]] <- 
+  #   ifelse(combined_df_big$coordinated_mkt_pwr > 0, combined_df_big[[paste0("m2_diff_oil_neg_", i)]], 0)
+  # combined_df_big[[paste0("m6_diff_oil_no_coord_neg_", i)]] <- 
+  #   ifelse(combined_df_big$coordinated_mkt_pwr == 0, combined_df_big[[paste0("m2_diff_oil_neg_", i)]], 0)
 }
 
 mkt_pwr_est_df <- combined_df %>%
