@@ -17,10 +17,8 @@
 
 rm(list=ls())
 
-setwd("C:/Users/marcu/Documents/gas-col")
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/Dropbox/gas-col"))
 
-
-#install.packages("sf")
 library(tidyverse)
 
 # Load data

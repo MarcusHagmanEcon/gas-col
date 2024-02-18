@@ -23,7 +23,7 @@
 
 rm(list=ls())
 
-setwd("C:/Users/marcu/Documents/gas-col")
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/Dropbox/gas-col"))
 
 library(tidyverse)
 library(lubridate)
@@ -44,19 +44,22 @@ rm(gas_prices)
 big_brands <- brand_df %>% mutate(brand = as.character(brand)) %>% select(brand) %>%
   pull()
 # SPS
-sps_brands <- brand_df %>% filter(t_stat > 2) %>% mutate(brand = as.character(brand)) %>% select(brand) %>%
+sps_brands <- brand_df %>% filter(t_stat > 2) %>% mutate(brand = as.character(brand)) %>% 
+  select(brand) %>%
   pull()
 
 combined_df <- combined_df %>% rename(oil = brent)
 
 combined_df <- combined_df %>% 
   mutate(unilateral_mkt_pwr = ifelse((brand %in% sps_brands) & 
-                                       (brand_of_nearest_station_phdis == brand), brand_df[which(brand_df[,1] == brand),
-                                                                                           paste0(brand, "_t_stat")][[1]] > 1.96,0),
+                                       (brand_of_nearest_station_phdis == brand), 
+                                       brand_df[which(brand_df[,1] == brand),
+                                       paste0(brand, "_t_stat")][[1]] > 1.96,0),
          coordinated_mkt_pwr = ifelse((brand %in% sps_brands) & 
                                         (brand_of_nearest_station_phdis %in% sps_brands) & 
-                                        (brand != brand_of_nearest_station_phdis), brand_df[which(brand_df[,1] == brand),
-                                                                                            paste0(brand_of_nearest_station_phdis, "_t_stat")][[1]] > 1.96,0))
+                                        (brand != brand_of_nearest_station_phdis),
+                                        brand_df[which(brand_df[,1] == brand),
+                                        paste0(brand_of_nearest_station_phdis, "_t_stat")][[1]] > 1.96,0))
 
 combined_df <- combined_df %>% mutate(weekday = weekdays(date))
 

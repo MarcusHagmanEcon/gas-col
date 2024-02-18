@@ -18,7 +18,7 @@
 
 rm(list=ls())
 
-setwd("C:/Users/marcu/Documents/gas-col")
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/Dropbox/gas-col"))
 
 library(tidyverse)
 library(lubridate)
@@ -42,7 +42,7 @@ gas_prices <- gas_prices %>% mutate(e5 = ifelse(e5 > 10 & e5 < 9999, e5, NA),
                                     diesel = ifelse(diesel > 10 & diesel < 9999, diesel, NA))
 
 # Change unit of prices to EUR per liter
-gas_price <- gas_prices %>% mutate(e5 = e5 / 1000,
+gas_prices <- gas_prices %>% mutate(e5 = e5 / 1000,
                                    e10 = e10 / 1000,
                                    diesel = diesel / 1000)
 
@@ -107,6 +107,13 @@ gas_prices_day <- gas_prices_day %>% left_join(bounds, by = c("date"))
 gas_prices_day <- gas_prices_day %>% filter(log_e5 > lower_bound_e5 & log_e5 < upper_bound_e5)
 
 gas_prices_day <- gas_prices_day %>% select( -c(lower_bound_e5, upper_bound_e5))
+
+price_info <- gas_prices_day %>%
+  group_by(stid) %>%
+  summarize(
+    First_Price_Date = min(date[!is.na(e5)], na.rm = TRUE),
+    Last_Price_Date = max(date[!is.na(e5)], na.rm = TRUE)
+  )
 
 saveRDS(gas_prices_day, file = "01_data/02_processed/cleaned_gas_prices.rds")
   

@@ -17,7 +17,7 @@
 
 rm(list=ls())
 
-setwd("C:/Users/marcu/Documents/gas-col")
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/Dropbox/gas-col"))
 
 library(tidyverse)
 library(lubridate)
@@ -31,6 +31,9 @@ source("02_R/02_functions/cumulative_response.R")
 source("02_R/02_functions/cumulative_response_plot.R")
 
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
+
+legend_text_size <- 15
+legend_space <- 4
 
 # Test hypothesis of strategic pricing
 
@@ -77,6 +80,7 @@ model_full_coef <- summary(model_full)$coef
 # Use stargazer with type set to "latex"
 sink(paste0("03_outputs/tables/", timestamp, "_distance_measure_comp.tex"))
 stargazer(model_phdis, model_drdis, model_drdur, model_full, type = "latex",
+          dep.var.labels = "$\\ln p^R_{ibt}$",
           covariate.labels = c("Same Brand as Nearest, Linear Distance", "Same Brand as Nearest, Driving Distance",
                                "Same Brand as Nearest, Driving Duration"),
           omit = c("stations_within_5km", "stations_within_10km", "stations_within_15km", 
@@ -86,19 +90,25 @@ stargazer(model_phdis, model_drdis, model_drdur, model_full, type = "latex",
           se = list(model_phdis_coef[,2],model_drdis_coef[,2],model_drdur_coef[,2], model_full_coef[,2]), # assuming second column contains SEs
           omit.stat = "all", # to omit additional statistics like R-squared, F-statistic, etc.
           single.row = FALSE,
-          title = "", 
+          title = "Effect on Log Price of Having the Nearest Station Belong to Same Brand", 
           label = "",
-          add.lines = list(c("R2", format(summary(model_phdis)$r.squared, digits = 5),
-                             format(summary(model_drdis)$r.squared, digits = 5),
-                             format(summary(model_drdur)$r.squared, digits = 5),
-                             format(summary(model_full)$r.squared, digits = 5)))) 
+          notes = "Standard errors are clustered at the date and brand levels",
+          add.lines = list( c("Controls, Date FE \\& Brand FE", rep("\\checkmark", 4)),
+                            c("R^2", format(summary(model_phdis)$r.squared, digits = 5),
+                              format(summary(model_drdis)$r.squared, digits = 5),
+                              format(summary(model_drdur)$r.squared, digits = 5),
+                              format(summary(model_full)$r.squared, digits = 5)),
+                            c("Observations", format(summary(model_phdis)$N),
+                              format(summary(model_drdis)$N),
+                              format(summary(model_drdur)$N),
+                              format(summary(model_full)$N))))
 sink()
 
 rm(mkt_pwr_est_df)
 
 
 ## Lag selection
-model_1_df  <- readRDS("01_data/02_processed/model_1_df.rds")
+spt_df  <- readRDS("01_data/02_processed/spt_df.rds")
 lag_selection_list <- as.data.frame(matrix(ncol = 2))
 names(lag_selection_list) <- c("n", "AIC")
 for (n in 1:29) {
@@ -108,7 +118,7 @@ for (n in 1:29) {
     paste(paste(paste0("m1_diff_oil_", 1:(1+n)), collapse=" + ")) %>%
     paste(paste(paste0("diff_e5_", 2:(1+n)), collapse=" + "), sep = " + ") %>%
     paste0(" + lag_e5 + lag_oil | stid | 0 | date + stid") %>% formula()
-  lag_selection_model <- felm(lag_selection_formula, data = model_1_df)
+  lag_selection_model <- felm(lag_selection_formula, data = spt_df)
   
   # Capture the AIC value
   model_aic <- AIC(lag_selection_model)
@@ -118,62 +128,77 @@ for (n in 1:29) {
 }
 lag_length <- lag_selection_list$n[which.min(lag_selection_list$AIC)]
 
-
 ## Model 1: Symmetric price transmission
 pt_model_1_formula <- "diff_e5_1 ~ " %>%
   paste(paste(paste0("m1_diff_oil_", 1:(1+lag_length)), collapse=" + ")) %>%
   paste(paste(paste0("diff_e5_", 2:(1+lag_length)), collapse=" + "), sep = " + ") %>%
   paste0(" + lag_e5 + lag_oil | stid | 0 | date + stid") %>% formula()
-pt_model_1 <- felm(pt_model_1_formula, data = model_1_df )
+pt_model_1 <- felm(pt_model_1_formula, data = spt_df )
 crf <- cumulative_response_sym(pt_model_1)
-spt_plot_1 <- cumulative_response_plot(list(crf), c("Response to Change in Oil Price"))
-ggsave("03_outputs/figures/20240205_spt_plot_1.png", spt_plot_1, width = 10, height = 6)
-rm(model_1_df)
+spt_plot_1 <- cumulative_response_plot(list(crf), c("Response to \nChange in Oil Price")) +
+  theme(
+    legend.text = element_text(size = legend_text_size)
+  )
+ggsave(paste0("03_outputs/figures/", timestamp, "_spt_plot_1.png"), spt_plot_1, width = 12, height = 6)
+rm(spt_df)
+
 
 # Model 2: Allow for asymmetry
-model_2_df  <- readRDS("01_data/02_processed/model_2_df.rds")
+apt_df  <- readRDS("01_data/02_processed/apt_df.rds")
 pt_model_2_formula <- "diff_e5_1 ~ " %>%
   paste(paste(paste0("m2_diff_oil_pos_", 1:(1+lag_length)), collapse=" + ")) %>%
   paste(paste(paste0("m2_diff_oil_neg_", 1:(1+lag_length)), collapse=" + "), sep = " + ") %>%
   paste(paste(paste0("diff_e5_pos_", 2:(1+lag_length)), collapse=" + "), sep = " + ") %>%
   paste(paste(paste0("diff_e5_neg_", 2:(1+lag_length)), collapse=" + "), sep = " + ") %>%
   paste0("  + lag_e5 + lag_oil | stid | 0 | date + stid") %>% formula()
-pt_model_2 <- felm(pt_model_2_formula, data = model_2_df)
+pt_model_2 <- felm(pt_model_2_formula, data = apt_df)
 crf_pos <- cumulative_response_asym(pt_model_2, "pos")
 crf_neg <- cumulative_response_asym(pt_model_2, "neg")
-apt_plot_1 <- cumulative_response_plot(list(crf_pos, crf_neg), c("Response to Increase in Oil Price",
-                                                   "Response to Decrease in Oil Price"))
-ggsave("03_outputs/figures/20240205_apt_plot_1.png", apt_plot_1, width = 10, height = 6)
+apt_plot_1 <- cumulative_response_plot(list(crf_pos, crf_neg), c("Response to \nIncrease in Oil Price",
+                                                   "Response to \nDecrease in Oil Price")) +
+  theme(
+    legend.text = element_text(size = legend_text_size),
+    legend.key.size = unit(legend_space, "lines")
+  )
+ggsave(paste0("03_outputs/figures/", timestamp, "_apt_plot_1.png"), apt_plot_1, width = 12, height = 6)
 
-pt_model_2_no_uni <- felm(pt_model_2_formula, data = model_2_df %>% filter(!unilateral_mkt_pwr>0))
+pt_model_2_no_uni <- felm(pt_model_2_formula, data = apt_df %>% filter(!unilateral_mkt_pwr>0))
 crf_pos_no_uni <- cumulative_response_asym(pt_model_2_no_uni, "pos")
 crf_neg_no_uni <- cumulative_response_asym(pt_model_2_no_uni, "neg")
 
-pt_model_2_uni <- felm(pt_model_2_formula, data = model_2_df %>% filter(unilateral_mkt_pwr>0))
+pt_model_2_uni <- felm(pt_model_2_formula, data = apt_df %>% filter(unilateral_mkt_pwr>0))
 crf_pos_uni <- cumulative_response_asym(pt_model_2_uni, "pos")
 crf_neg_uni <- cumulative_response_asym(pt_model_2_uni, "neg")
 
 apt_plot_2 <- cumulative_response_plot(list(crf_pos_no_uni, crf_neg_no_uni, crf_pos_uni, crf_neg_uni), 
-                         c("Response to Increase in Oil Price, \nno Unilateral Market Power",
-                           "Response to Decrease in Oil Price, \nno Unilateral Market Power",
-                           "Response to Increase in Oil Price, \nUnilateral Market Power",
-                           "Response to Decrease in Oil Price, \nUnilateral Market Power"))
-ggsave("03_outputs/figures/20240205_apt_plot_2.png", apt_plot_2, width = 10, height = 6)
+                         c("Response to \nIncrease in Oil Price, \nno Unilateral Market Power",
+                           "Response to \nDecrease in Oil Price, \nno Unilateral Market Power",
+                           "Response to \nIncrease in Oil Price, \nUnilateral Market Power",
+                           "Response to \nDecrease in Oil Price, \nUnilateral Market Power")) +
+  theme(
+    legend.text = element_text(size = legend_text_size),
+    legend.key.size = unit(legend_space, "lines")
+  )
+ggsave(paste0("03_outputs/figures/", timestamp, "_apt_plot_2.png"), apt_plot_2, width = 12, height = 6)
 
 
-pt_model_2_no_coord <- felm(pt_model_2_formula, data = model_2_df %>% filter(!coordinated_mkt_pwr>0))
+pt_model_2_no_coord <- felm(pt_model_2_formula, data = apt_df %>% filter(!coordinated_mkt_pwr>0))
 crf_pos_no_coord <- cumulative_response_asym(pt_model_2_no_coord, "pos")
 crf_neg_no_coord <- cumulative_response_asym(pt_model_2_no_coord, "neg")
 
-pt_model_2_coord <- felm(pt_model_2_formula, data = model_2_df %>% filter(coordinated_mkt_pwr>0))
+pt_model_2_coord <- felm(pt_model_2_formula, data = apt_df %>% filter(coordinated_mkt_pwr>0))
 crf_pos_coord <- cumulative_response_asym(pt_model_2_coord, "pos")
 crf_neg_coord <- cumulative_response_asym(pt_model_2_coord, "neg")
 
 apt_plot_3 <- cumulative_response_plot(list(crf_pos_no_coord, crf_neg_no_coord, crf_pos_coord, crf_neg_coord), 
-                         c("Response to Increase in Oil Price, \nNo Unilateral Market Power",
-                           "Response to Decrease in Oil Price, \nNo Unilateral Market Power",
-                           "Response to Increase in Oil Price, \nUnilateral Market Power",
-                           "Response to Decrease in Oil Price, \nUnilateral Market Power"))
-ggsave("03_outputs/figures/20240205_apt_plot_3.png", apt_plot_3, width = 10, height = 6)
+                         c("Response to \nIncrease in Oil Price, \nNon-Collusive Station",
+                           "Response to \nDecrease in Oil Price, \nNon-Collusive Station",
+                           "Response to \nIncrease in Oil Price, \nCollusive Station",
+                           "Response to \nDecrease in Oil Price, \nCollusive Station")) +
+  theme(
+    legend.text = element_text(size = legend_text_size),
+    legend.key.size = unit(legend_space, "lines")
+  ) 
+ggsave(paste0("03_outputs/figures/", timestamp, "_apt_plot_3.png"), apt_plot_3, width = 12, height = 6)
 
 

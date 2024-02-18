@@ -17,7 +17,7 @@
 
 rm(list=ls())
 
-setwd("C:/Users/marcu/Documents/gas-col")
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/Dropbox/gas-col"))
 
 library(tidyverse)
 library(xml2)

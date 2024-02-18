@@ -19,7 +19,7 @@
 
 rm(list=ls())
 
-setwd("C:/Users/marcu/Documents/gas-col")
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/Dropbox/gas-col"))
 
 library(tidyverse)
 library(lfe)
@@ -30,7 +30,7 @@ source("02_R/02_functions/transform_strings.R")
 timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 
 # Load data
-analysis_data <- readRDS("01_data/02_processed/analysis_data.rds")
+analysis_data <- readRDS("01_data/02_processed/mkt_pwr_est_df.rds")
 gas_stations <- readRDS("01_data/02_processed/cleaned_gas_stations.rds")
 
 brand_df <- gas_stations %>% filter(!is.na(brand)) %>% group_by(brand) %>% 
@@ -64,8 +64,12 @@ for (b in brand_df$brand){
   print(model_brand_coef)
 }
 
+transformed_brands <- transform_strings(brand_df$brand)
+
 sink(paste0("03_outputs/tables/", timestamp, "_brand_coef.tex"))
 stargazer(models_list, type = "latex",
+          dep.var.labels = "\\ln p^R_{ibt}",
+          column.labels = transform_strings(brand_df$brand),
           covariate.labels = c("Same Brand as Nearest, Linear Distance"),
           omit = c("stations_within_5km", "stations_within_10km", "stations_within_15km", 
                    "population_within_5km", "population_within_10km",
@@ -73,8 +77,13 @@ stargazer(models_list, type = "latex",
                    "stations_per_million_pop_10km", "less_than_50m_to_neighbor_phdis"),
           omit.stat = "all", # to omit additional statistics like R-squared, F-statistic, etc.
           single.row = FALSE,
-          title = "", 
-          label = "")
+          title = "Effect on Log Price of Having the Nearest Station Belong to Same Brand, by Brand", 
+          label = "",
+          notes = "Standard errors are clustered at the date and station levels",
+          add.lines = list( c("Controls \\& Date Fixed Effects", rep("\\checkmark", 5)), 
+                            c("Observations", 
+                              sapply(models_list, 
+                                     function(model) format(summary(model)$N)))))
 sink()
 
 
@@ -113,6 +122,7 @@ for(element in sps_list) {
   analysis_data[[paste0(element, "_neighbor_brand")]] <- analysis_data$brand_of_nearest_station_phdis == element
 }
 
+models_list_2 <- list()
 for (b in sps_list){
   print(b)
   reg_data <- analysis_data %>% filter(brand == b)
@@ -133,6 +143,10 @@ for (b in sps_list){
                       data = reg_data,
                       na.action = na.omit)
   
+  model_name <- paste0("model_2_brand_", b)
+  
+  models_list_2[[model_name]] <- model_brand
+  
   model_brand_coef <- summary(model_brand)$coef
   
   for (b2 in sps_list){
@@ -140,6 +154,26 @@ for (b in sps_list){
       t(model_brand_coef[which(sps_list == b2),1:4])
   }
 }
+  
+sink(paste0("03_outputs/tables/", timestamp, "_brand_pair_coef.tex"))
+stargazer(models_list_2, type = "latex",
+          dep.var.labels = "$\\ln p^R_{ibt}$",
+          column.labels = transform_strings(sps_list),
+          covariate.labels = paste0("Nearest Station Brand ", transform_strings(sps_list)),
+          omit = c("stations_within_5km", "stations_within_10km", "stations_within_15km", 
+                   "population_within_5km", "population_within_10km",
+                   "population_within_5km_sq", "population_within_10km_sq", 
+                   "stations_per_million_pop_10km", "less_than_50m_to_neighbor_phdis"),
+          omit.stat = "all", # to omit additional statistics like R-squared, F-statistic, etc.
+          single.row = FALSE,
+          title = "Effect on Log Price of Having the Nearest Station Belong to Different Brands", 
+          label = "",
+          notes = "Standard errors are clustered at the date and station levels",
+          add.lines = list( c("Controls \\& Date Fixed Effects", rep("\\checkmark", length(sps_list))), 
+                            c("Observations", 
+                              sapply(models_list_2, 
+                                     function(model) format(summary(model)$N)))))
+sink()
 
 
 filtered_brand_df <- brand_df %>% 

@@ -22,7 +22,7 @@
 
 rm(list=ls())
 
-setwd("C:/Users/marcu/Documents/gas-col")
+setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/Dropbox/gas-col"))
 
 library(tidyverse)
 library(osrm)
@@ -64,6 +64,7 @@ gas_stations$brand <- tolower(gsub("\\s+", "", gas_stations$brand))
 source("02_R/02_functions/haversine_distance.R")
 source("02_R/02_functions/competition_metrics.R")
 source("02_R/02_functions/population_within_radius.R")
+source("02_R/02_functions/closest_station.R")
 
 population_within_10km <- mapply(population_within_radius,
                                  lat = gas_stations$lat,
@@ -80,7 +81,10 @@ population_within_5km <- mapply(population_within_radius,
 gas_stations$population_within_5km <- population_within_5km
 gas_stations$population_within_5km_sq <- population_within_5km^2
 
-competition_metrics_df <- sapply(1:nrow(gas_stations), competition_metrics, df = gas_stations)
+# competition_metrics_df <- sapply(1:nrow(gas_stations), competition_metrics, df = gas_stations)
+# gas_stations <- gas_stations %>% cbind(t(competition_metrics_df)) 
+
+competition_metrics_df <- sapply(1:nrow(gas_stations), closest_station, df = gas_stations)
 gas_stations <- gas_stations %>% cbind(t(competition_metrics_df)) 
 # Change type where relevant
 gas_stations <- gas_stations %>% 
