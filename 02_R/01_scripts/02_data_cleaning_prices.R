@@ -42,7 +42,7 @@ gas_prices <- gas_prices %>% mutate(e5 = ifelse(e5 > 10 & e5 < 9999, e5, NA),
                                     diesel = ifelse(diesel > 10 & diesel < 9999, diesel, NA))
 
 # Change unit of prices to EUR per liter
-gas_price <- gas_prices %>% mutate(e5 = e5 / 1000,
+gas_prices <- gas_prices %>% mutate(e5 = e5 / 1000,
                                    e10 = e10 / 1000,
                                    diesel = diesel / 1000)
 
