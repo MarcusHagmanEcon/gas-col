@@ -28,7 +28,7 @@ timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 # Load data
 gas_prices <- read.csv("01_data/01_raw/gas_prices.csv")
 
-# Set up variables 
+# Set up variables, remove ones that are not used
 gas_prices <- gas_prices %>% mutate(datetime = ymd_hms(gas_prices$date),
                                     date = as.Date(substr(date, 1, 10)),
                                     price_changed = TRUE) %>%
@@ -66,13 +66,14 @@ gas_prices <- gas_prices %>% mutate(duration = ifelse(stid == lead(stid),
 source("02_R/02_functions/remove_obs_outside_hours.R")
 gas_prices <- remove_obs_outside_hours(gas_prices)
 
-gas_prices <- gas_prices %>%
-  mutate(
-    weighted_e5 = e5 * duration,
-    weighted_e10 = e10 * duration,
-    weighted_diesel = diesel * duration
-  ) 
+# gas_prices <- gas_prices %>%
+#   mutate(
+#     weighted_e5 = e5 * duration,
+#     weighted_e10 = e10 * duration,
+#     weighted_diesel = diesel * duration
+#   ) 
 
+# Convert unit of observation into day-station   
 gas_prices_day <- gas_prices %>%
   mutate(
     weighted_e5 = e5 * duration,
@@ -96,10 +97,11 @@ gas_prices_day <- gas_prices_day %>% mutate(log_e5 = log(e5),
                                           log_diesel = log(diesel))
 
 # Remove outliers
-bounds <- gas_prices_day %>% group_by(date) %>% summarize(median = median(log_e5, na.rm = TRUE),
-                                                         iqr = IQR(log_e5, na.rm = TRUE),
-                                                         upper_bound_e5 = median + 5 * iqr,
-                                                         lower_bound_e5 = median - 5 * iqr ) %>%
+bounds <- gas_prices_day %>% group_by(date) %>% 
+  summarize(median = median(log_e5, na.rm = TRUE),
+             iqr = IQR(log_e5, na.rm = TRUE),
+             upper_bound_e5 = median + 5 * iqr,
+             lower_bound_e5 = median - 5 * iqr ) %>%
   select(date, upper_bound_e5, lower_bound_e5)
 
 gas_prices_day <- gas_prices_day %>% left_join(bounds, by = c("date"))
