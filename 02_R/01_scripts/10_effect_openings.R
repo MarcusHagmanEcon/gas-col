@@ -1,27 +1,54 @@
+#--------------------------------------------------------------------------
+# Script Name: 10_effect_openings.R
+# 
+# Author: Marcus Hagman
+# Date: 2024-04-09
+# 
+# Purpose: I use Callaway and Sant'Anna to find the effect of nearby gas station
+#       openings on prices.
+#
+# Input: - 01_data/02_processed/cleaned_gas_prices.rds
+#        - 01_data/02_processed/cleaned_gas_stations.rds
+# 
+# Output: - _nearby_opening.png
+#         - _openings_att.tex
+#         - _openings_n.tex
+#
+# Instructions: 
+#
+# Revision History:
+#--------------------------------------------------------------------------
+
 rm(list=ls())
 
 setwd(paste0("C:/Users/", Sys.getenv("USERNAME"), "/Dropbox/gas-col"))
 
 library(tidyverse)
 library(did)
+library(gridExtra)
+library(xtable)
+
+timestamp <- format(Sys.time(), "%Y-%m-%d_%H-%M-%S")
 
 prices <- readRDS("01_data/02_processed/cleaned_gas_prices.rds")
 stations <- readRDS("01_data/02_processed/cleaned_gas_stations.rds")
 
 stid_list <- prices$stid %>% unique()
 
-day_interval <- 30
+day_interval <- 28
 
 #Calculate weekly average prices
 prices_weekly <- prices %>% mutate(int_date = as.integer(date)) %>%
   filter(int_date %% day_interval == 0)
 
 # Calculate the open and close date of each station
-open_close <- prices_weekly %>%
+open_close <- prices %>%
   group_by(stid) %>%
   summarize(
-    first_price_date = min(date[!is.na(log_e5)], na.rm = TRUE),
-    last_price_date = max(date[!is.na(log_e5)], na.rm = TRUE)
+    first_price_date = (ceiling(as.integer(as.Date(min(date[!is.na(log_e5)], na.rm = TRUE))) / 
+                                  day_interval) * day_interval) %>% as.Date(origin = "1970-01-01"),
+    last_price_date = (ceiling(as.integer(as.Date(max(date[!is.na(log_e5)], na.rm = TRUE))) / 
+                                  day_interval) * day_interval) %>% as.Date(origin = "1970-01-01")
   )
 
 prices_weekly_reg <- prices_weekly %>% left_join(stations %>% 
@@ -32,110 +59,178 @@ prices_weekly_reg <- prices_weekly %>% left_join(stations %>%
          closest_last_price_date = last_price_date) %>%
   mutate(first_price_date = min(date),
          last_price_date = max(date)) %>% 
-  mutate(treated_open = (closest_first_price_date - first_price_date) > 20,
-         treated_close = (last_price_date - closest_last_price_date) > 20) %>%
+  mutate(treated_open = (closest_first_price_date > as.Date("2014-06-08") + 3*day_interval) &
+           (closest_first_price_date - first_price_date) > day_interval,
+         treated_close = (closest_last_price_date < as.Date("2016-05-02") - 3*day_interval) &
+           (last_price_date - closest_last_price_date) > day_interval) %>%
   mutate(nearest_station_open = ifelse(treated_open, date > closest_first_price_date, 0) ) %>%
   mutate(brand_neighbor_concat = paste(brand, brand_of_nearest_station_phdis, sep = "_")) %>%
   mutate(date = as.integer(date),
-         open_treat_group = ifelse(treated_open, as.integer(closest_first_price_date), 0),
          stid_num = which(stid_list == stid[1]),
-         open_treat_group_mp = 
+         open_treat_group = ifelse(treated_open, as.integer(closest_first_price_date), 0),
+         open_treat_group_nc = 
            ifelse(treated_open & 
                     brand_neighbor_concat %in% 
                     c("aral_aral", "aral_shell", "shell_aral", "shell_shell", "shell_total",
                       "total_aral", "total_shell", "total_total"), as.integer(closest_first_price_date), 0),
-         open_treat_group_ump = 
+         open_treat_group_ncsb = 
            ifelse(treated_open & 
                     brand_neighbor_concat %in% 
                     c("aral_aral", "shell_shell", "total_total"), as.integer(closest_first_price_date), 0),
-         open_treat_group_cmp = 
+         open_treat_group_ncc = 
            ifelse(treated_open & 
                     brand_neighbor_concat %in% 
                     c("aral_shell", "shell_aral", "shell_total",
                       "total_aral", "total_shell"), as.integer(closest_first_price_date), 0),
-         open_treat_group_nmp = 
+         open_treat_group_c = 
            ifelse(treated_open & 
                     !(brand_neighbor_concat %in% 
                     c("aral_aral", "aral_shell", "shell_aral", "shell_shell", "shell_total",
-                      "total_aral", "total_shell", "total_total") ), as.integer(closest_first_price_date), 0))
+                      "total_aral", "total_shell", "total_total") ), as.integer(closest_first_price_date), 0),
+         close_treat_group = ifelse(treated_close, as.integer(closest_last_price_date), 0))
 
+
+# Run event studies
 source("02_R/02_functions/event_study_graph.R")
-# Analysis
-all_open_model <- att_gt(yname = "log_e5",
-                  tname = "date",
-                  idname = "stid_num",
-                  gname = "open_treat_group",
-                  xformla = ~ 1,
-                  data = prices_weekly_reg,
-                  allow_unbalanced_panel = TRUE)
-all_open_agges <- aggte(all_open_model, type = "dynamic")
-event_study_graph(all_open_agges, -15, 15)
-
-
-nmp_open_model <- att_gt(yname = "log_e5",
+set.seed(1234)
+c_open_model <- att_gt(yname = "log_e5",
                          tname = "date",
                          idname = "stid_num",
-                         gname = "open_treat_group_nmp",
+                         gname = "open_treat_group_c",
                          xformla = ~ 1,
                          data = prices_weekly_reg,
                          allow_unbalanced_panel = TRUE)
-nmp_open_agges <- aggte(nmp_open_model, type = "dynamic")
-ggdid(all_open_agges, ylim = c(-.04, .04))
+c_open_agges <- aggte(c_open_model, type = "dynamic")
+c_graph <- event_study_graph(c_open_agges, -360, 360, 
+                  "Effect on Log Price of a Nearby Station Opening, Competitive Opening")
 
-mp_open_model <- att_gt(yname = "log_e5",
-                         tname = "date",
-                         idname = "stid_num",
-                         gname = "open_treat_group_mp",
-                         xformla = ~ 1,
-                         data = prices_weekly_reg,
-                         allow_unbalanced_panel = TRUE)
-mp_open_agges <- aggte(mp_open_model, type = "dynamic", na.rm = TRUE)
-ggdid(mp_open_agges, ylim = c(-.04, .04))
-
-ump_open_model <- att_gt(yname = "log_e5",
+ncsb_open_model <- att_gt(yname = "log_e5",
                         tname = "date",
                         idname = "stid_num",
-                        gname = "open_treat_group_ump",
+                        gname = "open_treat_group_ncsb",
                         xformla = ~ 1,
                         data = prices_weekly_reg,
                         allow_unbalanced_panel = TRUE)
-ump_open_agges <- aggte(ump_open_model, type = "dynamic", na.rm = TRUE)
-ggdid(ump_open_agges, ylim = c(-.04, .04))
+ncsb_open_agges <- aggte(ncsb_open_model, type = "dynamic", na.rm = TRUE)
+ncsb_graph <- event_study_graph(ncsb_open_agges, -360, 360,
+                  "Effect on Log Price of a Nearby Station Opening, Noncompetitive, Same Brand")
 
-cmp_open_model <- att_gt(yname = "log_e5",
+ncc_open_model <- att_gt(yname = "log_e5",
                         tname = "date",
                         idname = "stid_num",
-                        gname = "open_treat_group_cmp",
+                        gname = "open_treat_group_ncc",
                         xformla = ~ 1,
                         data = prices_weekly_reg,
                         allow_unbalanced_panel = TRUE)
-cmp_open_agges <- aggte(cmp_open_model, type = "dynamic", na.rm = TRUE)
-ggdid(cmp_open_agges, ylim = c(-.04, .04))
+ncc_open_agges <- aggte(ncc_open_model, type = "dynamic", na.rm = TRUE)
+ncc_graph <- event_study_graph(ncc_open_agges, -360, 360, 
+                  "Effect on Log Price of a Nearby Station Opening, Noncompetitive, Collusive")
+
+
+
+png(paste0("03_output/graphs/", timestamp, "_nearby_opening.png"), width = 800, height = 1200)
+layout_matrix <- rbind(c(1, 1),
+                       c(NA, NA),
+                       c(2, 2),
+                       c(NA, NA),
+                       c(3, 3))
+grid.arrange(grobs = list(c_graph, ncsb_graph, ncc_graph), 
+             layout_matrix = layout_matrix,
+             heights = unit(c(4, 1, 4, 1, 4), c("null", "lines", "null", "lines", "null")))
+dev.off()
 
 
 
 
+# Present ATT in table
+results_df <- data.frame(estimates = c(c_open_agges$overall.att,
+                                     ncsb_open_agges$overall.att, ncc_open_agges$overall.att),
+                       standard_errors = c(c_open_agges$overall.se,
+                                           ncsb_open_agges$overall.se, ncc_open_agges$overall.se))
+table_results <- rbind(
+  c("Category of Opening", "Competitive", "Same Brand", "Collusive"),
+  c("ATT Estimate", round(results_df$estimates, digits = 5)),
+  c("Std. Error", paste0("(", round(results_df$standard_errors, digits = 5), ")")),
+  c("95\\% Confidence Interval", paste0("[", round(results_df$estimates - 1.96*results_df$standard_errors, digits = 5), ", ", round(results_df$estimates + 1.96*results_df$standard_errors, digits = 5), "]"))
+)
+xt_result <- xtable(table_results, include.caption = FALSE, label = "tab:results",
+             include.rownames = FALSE, include.colnames = FALSE,)
+align(xt_result) <- c("l", "l", "r", "r", "r")
+print(xt_result, 
+      file = paste0("03_output/tables/", timestamp, "_openings_att.tex"),
+      include.rownames = FALSE, include.colnames = FALSE,
+      hline.after = c(-1,0, 1, nrow(table_results), nrow(table_results)),
+      comment = FALSE,
+      booktabs = TRUE, # Enables the use of booktabs style.
+      sanitize.text.function = function(x){x})
 
-df <- cbind(event_time  = ump_open_agges$egt / 28,
-            est = ump_open_agges$att.egt,
-            se  = ump_open_agges$se.egt) %>% 
-  as.data.frame() %>% 
-  filter(event_time >= -10 & event_time <=10)
 
-ggplot(df, aes(x = event_time, y = est)) + 
-  geom_point(stat = "identity", position = position_dodge(), width = 1) +
-  geom_errorbar(aes(ymin = est - 1.96*se, ymax = est + 1.96*se), width = 0.4) +
-  theme_minimal() +
-  labs(x = "Time Relative to Nearby Station Opening", y = "Estimate (95% CI)", title = "Event Study of Nearby Gas Station Openings (Without Market Power)")
+# Present number of events in a table
+n_open <- prices_weekly_reg %>% filter(!is.na(open_treat_group)) %>%
+  filter(open_treat_group > 0) %>%
+  select(stid) %>% unique() %>% nrow()
+n_open_c <- prices_weekly_reg %>% filter(!is.na(open_treat_group_c)) %>%
+  filter(open_treat_group_c > 0) %>%
+  select(stid) %>% unique() %>% nrow()
+n_open_ncsb <- prices_weekly_reg %>% filter(!is.na(open_treat_group_ncsb)) %>%
+  filter(open_treat_group_ncsb > 0) %>%
+  select(stid) %>% unique() %>% nrow()
+n_open_ncc <- prices_weekly_reg %>% filter(!is.na(open_treat_group_ncc)) %>%
+  filter(open_treat_group_ncc > 0) %>%
+  select(stid) %>% unique() %>% nrow()
+n_close <- prices_weekly_reg %>% filter(!is.na(close_treat_group)) %>% filter(close_treat_group > 0) %>%
+  select(stid) %>% unique() %>% nrow()
+
+table_n <- cbind( c("", "Competitive", "Noncompetitive, Same Brand",
+                    "Noncompetitive, Collusive", "Total Number of Nearby Openings", 
+                    "Total Number of Nearby Closings"),
+                  c("Number of Events", n_open_c, n_open_ncsb, n_open_ncc, n_open,
+                    n_close))
+xt_n <- xtable(table_n, include.caption = FALSE, label = "tab:results",
+                    include.rownames = FALSE, include.colnames = FALSE,)
+align(xt_n) <- c("l", "l", "r")
+print(xt_n, 
+      file = paste0("03_output/tables/", timestamp, "_openings_n.tex"),
+      include.rownames = FALSE, include.colnames = FALSE,
+      hline.after = c(-1,0, 1, 5, nrow(table_n), nrow(table_n)),
+      comment = FALSE,
+      booktabs = TRUE, # Enables the use of booktabs style.
+      sanitize.text.function = function(x){x})
 
 
-ggplot(df, aes(x = event_time, y = est)) + 
-  geom_point(stat = "identity", position = position_dodge(), width = 1, 
-             aes(color = ifelse(event_time >= 0, "darkblue", "darkred"))) + # Color points conditionally
-  geom_errorbar(aes(ymin = est - 1.96*se, ymax = est + 1.96*se, 
-                    color = ifelse(event_time >= 0, "darkblue", "darkred")), width = 0.4) + # Color error bars conditionally
-  geom_hline(yintercept = 0, linetype = "dashed", color = "black") + # Add horizontal line at y = 0
-  scale_color_identity() + # Use actual color names provided
-  theme_minimal() +
-  labs(x = "Time Relative to Nearby Station Opening", y = "Estimate (95% CI)", 
-       title = "Event Study of Nearby Gas Station Openings (Without Market Power)")
+# results_df <- data.frame(estimates = c(c_open_agges$overall.att,
+#                                      ncsb_open_agges$overall.att, ncc_open_agges$overall.att), 
+#                        standard_errors = c(c_open_agges$overall.se,
+#                                            ncsb_open_agges$overall.se, ncc_open_agges$overall.se))
+# 
+# latex_table <- print(xtable(t(round(results_df, digits = 8)), caption = "Analysis Results",
+#                             label = "tab:results"),
+#                      include.rownames = TRUE, hline.after = NULL, comment = FALSE,
+#                      sanitize.text.function = function(x){x},
+#                      booktabs = TRUE,  
+#                      align = c("l", "r", "r", "r"))  
+# print(xtable(rbind(c("Category of Opening", "1", "2", "3"),
+#                    c("ATT", round(results_df$estimates, digits = 7)),
+#                    c("", paste0("(",round(results_df$standard_errors, digits = 7),")"))), 
+#       caption = "Analysis Results",
+#              label = "tab:results"), file = paste0("03_output/tables/", timestamp, "_openings_att.tex"),
+#       include.rownames = FALSE, include.colnames = FALSE,
+#       hline.after = NULL, comment = FALSE,
+#       sanitize.text.function = function(x){x},
+#       booktabs = TRUE,
+#       align = c("lrrr")) 
+
+
+# sb_open_model <- att_gt(yname = "log_e5",
+#                        tname = "date",
+#                        idname = "stid_num",
+#                        gname = "open_treat_group_sb",
+#                        xformla = ~ 1,
+#                        data = prices_weekly_reg,
+#                        allow_unbalanced_panel = TRUE)
+# sb_open_agges <- aggte(sb_open_model, type = "dynamic", na.rm = TRUE)
+# event_study_graph(sb_open_agges, -360, 360, 
+#                              "Effect on Log Price of a Nearby Station Opening, Competitive Opening")
+# 
+# prices_weekly_reg %>% filter(!is.na(open_treat_group_sb)) %>% filter(open_treat_group_sb > 0) %>%
+#   select(stid) %>% unique() %>% nrow()

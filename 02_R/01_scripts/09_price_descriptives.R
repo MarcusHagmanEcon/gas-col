@@ -58,7 +58,19 @@ plot <- ggplot(avg_prices_long, aes(x = date, y = price, color = Series)) +
                                 "p5_e5" = "pink", "p95_e5" = "red"),
                      labels = c("Crude Oil Price", "Median Gasoline Price", 
                                 "5th Percentile Gasoline Price", "95th Percentile Gasoline Price"))
-ggsave(paste("03_outputs/figures/", timestamp,"_prices_over_time.png", sep=""), plot, width = 10, height = 6, units = "in")
+plot <- ggplot(avg_prices_long, aes(x = date, y = price, color = Series)) +
+  geom_line() + # Use geom_line() for line plots
+  theme_minimal() + # Optional: Use a minimal theme
+  labs(x = "Date", y = "Price (EUR / liter)", title = "Brent and Gasoline Prices over Time") +
+  scale_color_manual(values = c("brent" = "blue", "median_e5" = "darkred",
+                                "p5_e5" = "pink", "p95_e5" = "red"),
+                     labels = c("Crude Oil Price", "Median Gasoline Price", 
+                                "5th Percentile Gasoline Price", "95th Percentile Gasoline Price")) +
+  theme(plot.title = element_text(size = 20), 
+        axis.title = element_text(size = 16), 
+        axis.text = element_text(size = 14),
+        legend.text = element_text(size = 14))
+ggsave(paste("03_output/graphs/", timestamp,"_prices_over_time.png", sep=""), plot, width = 13, height = 6, units = "in")
 
 
 # Below is some code if I want to save show the price series of a few specific stations too
