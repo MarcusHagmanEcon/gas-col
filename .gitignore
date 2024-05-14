@@ -50,6 +50,7 @@ Thumbs.db
 
 *.csv
 *.rds
+*.xml
 
 *.1
 *.gz
