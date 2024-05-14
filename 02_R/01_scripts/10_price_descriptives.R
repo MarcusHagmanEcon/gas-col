@@ -1,5 +1,5 @@
 #--------------------------------------------------------------------------
-# Script Name: 05_analysis.R
+# Script Name: 10_price_desciptives.R
 # 
 # Author: Marcus Hagman
 # Date: 2024-02-05
@@ -73,27 +73,26 @@ plot <- ggplot(avg_prices_long, aes(x = date, y = price, color = Series)) +
 ggsave(paste("03_output/graphs/", timestamp,"_prices_over_time.png", sep=""), plot, width = 13, height = 6, units = "in")
 
 
-# Below is some code if I want to save show the price series of a few specific stations too
+# Specific Stations
 
-# 
-# particular_prices <-  avg_prices %>% select(date) %>%
-#   left_join(station_prices %>% filter(stid == station_list[3]) %>%
-#               select(date, e5) %>% rename("e5_example_1" = "e5"), by = c("date")) %>%
-#   left_join(station_prices %>% filter(stid == station_list[6]) %>%
-#               select(date, e5) %>% rename("e5_example_2" = "e5"), by = c("date")) %>% 
-#   select(-starts_with("stid"))
-# 
-# avg_prices <- avg_prices %>% left_join(particular_prices, by = "date")
-# 
-# # Reshape the data from wide to long
-# avg_prices_long <- pivot_longer(avg_prices, cols = c(brent, avg_e5, e5_example_1, e5_example_2), names_to = "Series", values_to = "price")
-# 
-# # Plot using ggplot2
-# plot <- ggplot(avg_prices_long, aes(x = date, y = price, color = type)) +
-#   geom_line() + # Use geom_line() for line plots
-#   theme_minimal() + # Optional: Use a minimal theme
-#   labs(x = "Date", y = "Price", title = "Brent and Avg E5 Prices Over Time") +
-#   scale_color_manual(values = c("brent" = "blue", "avg_e5" = "red", 
-#                                 "e5_example_1" = "green", "e5_example_2" = "black")) # Optional: Specify colors
-# plot
-# 
+particular_prices <-  avg_prices %>% select(date) %>%
+  left_join(station_prices %>% filter(stid == station_list[3]) %>%
+              select(date, e5) %>% rename("e5_example_1" = "e5"), by = c("date")) %>%
+  left_join(station_prices %>% filter(stid == station_list[6]) %>%
+              select(date, e5) %>% rename("e5_example_2" = "e5"), by = c("date")) %>%
+  select(-starts_with("stid"))
+
+avg_prices <- avg_prices %>% left_join(particular_prices, by = "date")
+
+# Reshape the data from wide to long
+avg_prices_long <- pivot_longer(avg_prices, cols = c(brent, median_e5, e5_example_1, e5_example_2), names_to = "Series", values_to = "price")
+
+# Plot using ggplot2
+plot <- ggplot(avg_prices_long, aes(x = date, y = price, color = Series)) +
+  geom_line() + # Use geom_line() for line plots
+  theme_minimal() + # Optional: Use a minimal theme
+  labs(x = "Date", y = "Price", title = "Brent and Avg E5 Prices Over Time") +
+  scale_color_manual(values = c("brent" = "blue", "median_e5" = "red",
+                                "e5_example_1" = "green", "e5_example_2" = "black")) # Optional: Specify colors
+plot
+

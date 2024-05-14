@@ -66,13 +66,6 @@ source("02_R/02_functions/competition_metrics.R")
 source("02_R/02_functions/population_within_radius.R")
 source("02_R/02_functions/closest_station.R")
 
-population_within_10km <- mapply(population_within_radius,
-                                 lat = gas_stations$lat,
-                                 lng = gas_stations$lng,
-                                 MoreArgs=list(pop_data = cleaned_population,
-                                               radius = 10^4))
-gas_stations$population_within_10km <- population_within_10km
-gas_stations$population_within_10km_sq <- population_within_10km^2
 population_within_5km <- mapply(population_within_radius,
                                  lat = gas_stations$lat,
                                  lng = gas_stations$lng,
@@ -81,11 +74,25 @@ population_within_5km <- mapply(population_within_radius,
 gas_stations$population_within_5km <- population_within_5km
 gas_stations$population_within_5km_sq <- population_within_5km^2
 
-# competition_metrics_df <- sapply(1:nrow(gas_stations), competition_metrics, df = gas_stations)
-# gas_stations <- gas_stations %>% cbind(t(competition_metrics_df)) 
+population_within_10km <- mapply(population_within_radius,
+                                 lat = gas_stations$lat,
+                                 lng = gas_stations$lng,
+                                 MoreArgs=list(pop_data = cleaned_population,
+                                               radius = 10*10^3))
+gas_stations$population_within_10km <- population_within_10km
+gas_stations$population_within_10km_sq <- population_within_10km^2
 
-competition_metrics_df <- sapply(1:nrow(gas_stations), closest_station, df = gas_stations)
+population_within_15km <- mapply(population_within_radius,
+                                 lat = gas_stations$lat,
+                                 lng = gas_stations$lng,
+                                 MoreArgs=list(pop_data = cleaned_population,
+                                               radius = 15*10^3))
+gas_stations$population_within_15km <- population_within_15km
+gas_stations$population_within_15km_sq <- population_within_15km^2
+
+competition_metrics_df <- sapply(1:nrow(gas_stations), competition_metrics, df = gas_stations)
 gas_stations <- gas_stations %>% cbind(t(competition_metrics_df)) 
+
 # Change type where relevant
 gas_stations <- gas_stations %>% 
   mutate(drdur_to_nearest_station = as.numeric(drdur_to_nearest_station),

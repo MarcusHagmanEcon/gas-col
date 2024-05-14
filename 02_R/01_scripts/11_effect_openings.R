@@ -1,5 +1,5 @@
 #--------------------------------------------------------------------------
-# Script Name: 10_effect_openings.R
+# Script Name: 11_effect_openings.R
 # 
 # Author: Marcus Hagman
 # Date: 2024-04-09
@@ -39,7 +39,7 @@ day_interval <- 28
 
 #Calculate weekly average prices
 prices_weekly <- prices %>% mutate(int_date = as.integer(date)) %>%
-  filter(int_date %% day_interval == 0)
+  filter(int_date %% day_interval == 4)
 
 # Calculate the open and close date of each station
 open_close <- prices %>%
@@ -198,39 +198,3 @@ print(xt_n,
       sanitize.text.function = function(x){x})
 
 
-# results_df <- data.frame(estimates = c(c_open_agges$overall.att,
-#                                      ncsb_open_agges$overall.att, ncc_open_agges$overall.att), 
-#                        standard_errors = c(c_open_agges$overall.se,
-#                                            ncsb_open_agges$overall.se, ncc_open_agges$overall.se))
-# 
-# latex_table <- print(xtable(t(round(results_df, digits = 8)), caption = "Analysis Results",
-#                             label = "tab:results"),
-#                      include.rownames = TRUE, hline.after = NULL, comment = FALSE,
-#                      sanitize.text.function = function(x){x},
-#                      booktabs = TRUE,  
-#                      align = c("l", "r", "r", "r"))  
-# print(xtable(rbind(c("Category of Opening", "1", "2", "3"),
-#                    c("ATT", round(results_df$estimates, digits = 7)),
-#                    c("", paste0("(",round(results_df$standard_errors, digits = 7),")"))), 
-#       caption = "Analysis Results",
-#              label = "tab:results"), file = paste0("03_output/tables/", timestamp, "_openings_att.tex"),
-#       include.rownames = FALSE, include.colnames = FALSE,
-#       hline.after = NULL, comment = FALSE,
-#       sanitize.text.function = function(x){x},
-#       booktabs = TRUE,
-#       align = c("lrrr")) 
-
-
-# sb_open_model <- att_gt(yname = "log_e5",
-#                        tname = "date",
-#                        idname = "stid_num",
-#                        gname = "open_treat_group_sb",
-#                        xformla = ~ 1,
-#                        data = prices_weekly_reg,
-#                        allow_unbalanced_panel = TRUE)
-# sb_open_agges <- aggte(sb_open_model, type = "dynamic", na.rm = TRUE)
-# event_study_graph(sb_open_agges, -360, 360, 
-#                              "Effect on Log Price of a Nearby Station Opening, Competitive Opening")
-# 
-# prices_weekly_reg %>% filter(!is.na(open_treat_group_sb)) %>% filter(open_treat_group_sb > 0) %>%
-#   select(stid) %>% unique() %>% nrow()

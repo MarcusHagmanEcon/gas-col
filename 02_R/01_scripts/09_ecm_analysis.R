@@ -1,5 +1,5 @@
 #--------------------------------------------------------------------------
-# Script Name: 05_analysis.R
+# Script Name: 09_ecm_analysis.R
 # 
 # Author: Marcus Hagman
 # Date: 2024-02-05
@@ -37,75 +37,8 @@ legend_space <- 4
 
 # Test hypothesis of strategic pricing
 
-mkt_pwr_est_df <- readRDS("01_data/02_processed/mkt_pwr_est_df.rds")
-
-model_phdis <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
-                      stations_within_5km + stations_within_10km + stations_within_15km +
-                      population_within_5km + population_within_10km + 
-                      population_within_5km_sq + population_within_10km_sq + 
-                      stations_per_million_pop_10km + 
-                      less_than_50m_to_neighbor_phdis|  brand + date  | 0 | brand + date,
-                              data = mkt_pwr_est_df,
-                              na.action = na.omit)
-model_drdis <- felm(log_e5 ~ same_brand_as_nearest_station_drdis +
-                      stations_within_5km + stations_within_10km + stations_within_15km +
-                      population_within_5km + population_within_10km + 
-                      population_within_5km_sq + population_within_10km_sq + 
-                      stations_per_million_pop_10km + 
-                      less_than_50m_to_neighbor_phdis|  brand + date  | 0 | brand + date,
-                    data = mkt_pwr_est_df,
-                    na.action = na.omit)
-model_drdur <- felm(log_e5 ~ same_brand_as_nearest_station_drdur +
-                      stations_within_5km + stations_within_10km + stations_within_15km +
-                      population_within_5km + population_within_10km + 
-                      population_within_5km_sq + population_within_10km_sq + 
-                      stations_per_million_pop_10km + 
-                      less_than_50m_to_neighbor_phdis|  brand + date  | 0 | brand + date,
-                    data = mkt_pwr_est_df,
-                    na.action = na.omit)
-model_full <- felm(log_e5 ~ same_brand_as_nearest_station_phdis +
-                      same_brand_as_nearest_station_drdis +
-                      same_brand_as_nearest_station_drdur +
-                     stations_within_5km + stations_within_10km + stations_within_15km +
-                     population_within_5km + population_within_10km + 
-                     population_within_5km_sq + population_within_10km_sq + 
-                     stations_per_million_pop_10km + 
-                     less_than_50m_to_neighbor_phdis|  brand + date  | 0 | brand + date,
-                    data = mkt_pwr_est_df,
-                    na.action = na.omit)
-model_phdis_coef <- summary(model_phdis)$coef
-model_drdis_coef <- summary(model_drdis)$coef
-model_drdur_coef <- summary(model_drdur)$coef
-model_full_coef <- summary(model_full)$coef
-# Use stargazer with type set to "latex"
-sink(paste0("03_outputs/tables/", timestamp, "_distance_measure_comp.tex"))
-stargazer(model_phdis, model_drdis, model_drdur, model_full, type = "latex",
-          dep.var.labels = "$\\ln p^R_{ibt}$",
-          covariate.labels = c("Same Brand as Nearest, Linear Distance", "Same Brand as Nearest, Driving Distance",
-                               "Same Brand as Nearest, Driving Duration"),
-          omit = c("stations_within_5km", "stations_within_10km", "stations_within_15km", 
-                   "population_within_5km", "population_within_10km",
-                     "population_within_5km_sq", "population_within_10km_sq", 
-                   "stations_per_million_pop_10km", "less_than_50m_to_neighbor_phdis"),
-          se = list(model_phdis_coef[,2],model_drdis_coef[,2],model_drdur_coef[,2], model_full_coef[,2]), # assuming second column contains SEs
-          omit.stat = "all", # to omit additional statistics like R-squared, F-statistic, etc.
-          single.row = FALSE,
-          title = "Effect on Log Price of Having the Nearest Station Belong to Same Brand", 
-          label = "",
-          notes = "Standard errors are clustered at the date and brand levels",
-          add.lines = list( c("Controls, Date FE \\& Brand FE", rep("\\checkmark", 4)),
-                            c("R^2", format(summary(model_phdis)$r.squared, digits = 5),
-                              format(summary(model_drdis)$r.squared, digits = 5),
-                              format(summary(model_drdur)$r.squared, digits = 5),
-                              format(summary(model_full)$r.squared, digits = 5)),
-                            c("Observations", format(summary(model_phdis)$N),
-                              format(summary(model_drdis)$N),
-                              format(summary(model_drdur)$N),
-                              format(summary(model_full)$N))))
-sink()
-
-rm(mkt_pwr_est_df)
-
+spt_df <- readRDS("01_data/02_processed/spt_df.rds")
+apt_df <- readRDS("01_data/02_processed/apt_df.rds")
 
 ## Lag selection
 spt_df  <- readRDS("01_data/02_processed/spt_df.rds")
@@ -139,7 +72,7 @@ spt_plot_1 <- cumulative_response_plot(list(crf), c("Response to \nChange in Oil
   theme(
     legend.text = element_text(size = legend_text_size)
   )
-ggsave(paste0("03_outputs/figures/", timestamp, "_spt_plot_1.png"), spt_plot_1, width = 12, height = 6)
+ggsave(paste0("03_output/graphs/", timestamp, "_spt_plot_1.png"), spt_plot_1, width = 12, height = 6)
 rm(spt_df)
 
 
@@ -160,7 +93,7 @@ apt_plot_1 <- cumulative_response_plot(list(crf_pos, crf_neg), c("Response to \n
     legend.text = element_text(size = legend_text_size),
     legend.key.size = unit(legend_space, "lines")
   )
-ggsave(paste0("03_outputs/figures/", timestamp, "_apt_plot_1.png"), apt_plot_1, width = 12, height = 6)
+ggsave(paste0("03_output/graphs/", timestamp, "_apt_plot_1.png"), apt_plot_1, width = 12, height = 6)
 
 pt_model_2_no_uni <- felm(pt_model_2_formula, data = apt_df %>% filter(!unilateral_mkt_pwr>0))
 crf_pos_no_uni <- cumulative_response_asym(pt_model_2_no_uni, "pos")
@@ -179,7 +112,7 @@ apt_plot_2 <- cumulative_response_plot(list(crf_pos_no_uni, crf_neg_no_uni, crf_
     legend.text = element_text(size = legend_text_size),
     legend.key.size = unit(legend_space, "lines")
   )
-ggsave(paste0("03_outputs/figures/", timestamp, "_apt_plot_2.png"), apt_plot_2, width = 12, height = 6)
+ggsave(paste0("03_output/graphs/", timestamp, "_apt_plot_2.png"), apt_plot_2, width = 12, height = 6)
 
 
 pt_model_2_no_coord <- felm(pt_model_2_formula, data = apt_df %>% filter(!coordinated_mkt_pwr>0))
@@ -199,6 +132,6 @@ apt_plot_3 <- cumulative_response_plot(list(crf_pos_no_coord, crf_neg_no_coord, 
     legend.text = element_text(size = legend_text_size),
     legend.key.size = unit(legend_space, "lines")
   ) 
-ggsave(paste0("03_outputs/figures/", timestamp, "_apt_plot_3.png"), apt_plot_3, width = 12, height = 6)
+ggsave(paste0("03_output/graphs/", timestamp, "_apt_plot_3.png"), apt_plot_3, width = 12, height = 6)
 
 

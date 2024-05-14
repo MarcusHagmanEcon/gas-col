@@ -15,7 +15,7 @@ competition_metrics <- function(index, df){
   phdis <- replace(phdis, phdis == 0, Inf)
   phdis_rank <- rank(phdis, ties.method = "first")
   
-  number_close <- 5 # Indicates number of stations to find duration to
+  number_close <- 15 # Indicates number of stations to find duration to
   drdis_drdur_nearest <- mapply(driving_duration,
                                 lat1 = rep(target_lat, number_close),
                                 lng1 = rep(target_lng, number_close),
@@ -62,6 +62,18 @@ competition_metrics <- function(index, df){
   phdis_to_2nd_nearest_station <- phdis[which(phdis_rank == 2)]
   phdis_to_3rd_nearest_station <- phdis[which(phdis_rank == 3)]
   
+  stid_of_nearest_station_phdis <- df$id[which(phdis_rank == 1)]
+  stid_of_2nd_nearest_station_phdis <- df$id[which(phdis_rank == 2)]
+  stid_of_3rd_nearest_station_phdis <- df$id[which(phdis_rank == 3)]
+  
+  stid_of_nearest_station_drdur <- df$id[which(drdur_rank == 1)]
+  stid_of_2nd_nearest_station_drdur <- df$id[which(drdur_rank == 2)]
+  stid_of_3rd_nearest_station_drdur <- df$id[which(drdur_rank == 3)]
+  
+  stid_of_nearest_station_drdis <- df$id[which(drdis_rank == 1)]
+  stid_of_2nd_nearest_station_drdis <- df$id[which(drdis_rank == 2)]
+  stid_of_3rd_nearest_station_drdis <- df$id[which(drdis_rank == 3)]
+  
   stations_within_5km <- sum(phdis < 5)
   stations_within_10km <- sum(phdis < 10)
   stations_within_15km <- sum(phdis < 15)
@@ -88,7 +100,8 @@ competition_metrics <- function(index, df){
               "distance_rank_of_nearest_station_drdis" = distance_rank_of_nearest_station_drdis,
               "stations_within_5km" = stations_within_5km,
               "stations_within_10km" = stations_within_10km,
-              "stations_within_15km" = stations_within_15km)
+              "stations_within_15km" = stations_within_15km,
+              "stid_of_nearest_station_phdis" = stid_of_nearest_station_phdis)
   
   return(result)
 }
